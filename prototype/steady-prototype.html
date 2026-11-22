@@ -1,0 +1,511 @@
+<title>Steady Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: left column explains the step, right column is a live phone; below, the loop diagram, enforcement stack and plan tiers. */
+:root{
+  --bg:#EEF1F5;
+  --surface:#FFFFFF;
+  --ink:#152230;
+  --muted:#5A6878;
+  --line:#D5DCE5;
+  --accent:#3550D4;
+  --accent-soft:#E3E8FB;
+  --urge:#D9573B;
+  --urge-soft:#FBE6E0;
+  --calm:#2F8A6A;
+  --calm-soft:#DDF1E9;
+  --phone:#0E1620;
+  --screen:#F7F9FB;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F151C; --surface:#18212B; --ink:#E6ECF2; --muted:#93A1B0; --line:#2A3542;
+    --accent:#8197FF; --accent-soft:#222C4F; --urge:#F0806A; --urge-soft:#3A2420;
+    --calm:#5CC9A0; --calm-soft:#173329; --phone:#05080C; --screen:#141C25;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F151C; --surface:#18212B; --ink:#E6ECF2; --muted:#93A1B0; --line:#2A3542;
+  --accent:#8197FF; --accent-soft:#222C4F; --urge:#F0806A; --urge-soft:#3A2420;
+  --calm:#5CC9A0; --calm-soft:#173329; --phone:#05080C; --screen:#141C25;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:32px 64px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:72px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(2rem,5vw,3.25rem);font-weight:800;line-height:1.05}
+h2{font-size:clamp(1.5rem,3vw,2rem);font-weight:700}
+h3{font-size:1.1rem;font-weight:700}
+p{margin:0}
+.eyebrow{font-family:var(--mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.lede{color:var(--muted);max-width:62ch;font-size:1.08rem}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* header */
+header{display:flex;flex-direction:column;gap:14px}
+header .tag{display:inline-flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:.82rem;color:var(--muted)}
+
+/* prototype */
+.proto{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:48px;align-items:start}
+@media (max-width:860px){.proto{grid-template-columns:minmax(0,1fr)}.phone-col{justify-self:center}}
+.steps{list-style:none;margin:20px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.steps button{width:100%;text-align:left;display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;align-items:start;
+  padding:12px 14px;border-radius:12px;border:1px solid transparent;background:transparent;color:var(--ink)}
+.steps button:hover{background:var(--surface)}
+.steps button[aria-current="step"]{background:var(--surface);border-color:var(--line)}
+.steps .n{font-family:var(--mono);font-size:.8rem;color:var(--muted);padding-top:2px}
+.steps button[aria-current="step"] .n{color:var(--accent)}
+.steps strong{display:block;font-family:var(--display);font-weight:700}
+.steps span.d{display:block;color:var(--muted);font-size:.92rem}
+.why{margin-top:20px;padding:16px 18px;border-radius:12px;background:var(--accent-soft);display:flex;flex-direction:column;gap:6px}
+.why .eyebrow{color:var(--accent)}
+.why p{font-size:.95rem}
+
+.phone-col{display:flex;flex-direction:column;align-items:center;gap:14px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px)}
+.phone{width:340px;max-width:100%;height:700px;background:var(--phone);border-radius:44px;padding:12px;box-shadow:0 30px 60px -30px rgba(10,20,40,.45)}
+.screen{position:relative;height:100%;border-radius:34px;background:var(--screen);overflow:hidden;display:flex;flex-direction:column}
+.status{display:flex;justify-content:space-between;padding:12px 22px 4px;font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+.view{flex:1;overflow-y:auto;padding:10px 18px 18px;display:flex;flex-direction:column;gap:14px}
+.view[hidden]{display:none!important}
+.phone-nav{display:flex;gap:10px}
+.phone-nav button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 14px;font-size:.88rem}
+
+/* in-phone components */
+.p-title{font-family:var(--display);font-weight:800;font-size:1.45rem;line-height:1.1}
+.p-sub{color:var(--muted);font-size:.9rem}
+.p-label{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opt{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:8px 12px;font-size:.88rem}
+.opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.cta{border:0;border-radius:14px;padding:14px;background:var(--accent);color:#fff;font-weight:700;font-size:1rem;width:100%}
+:root[data-theme="dark"] .cta{color:#0B1020}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .cta{color:#0B1020}}
+.ghost{border:1.5px solid var(--line);border-radius:14px;padding:12px;background:transparent;color:var(--ink);font-weight:700;width:100%}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pill{font-family:var(--mono);font-size:.68rem;padding:3px 8px;border-radius:999px;background:var(--calm-soft);color:var(--calm)}
+.pill.urge{background:var(--urge-soft);color:var(--urge)}
+.pill.acc{background:var(--accent-soft);color:var(--accent)}
+.task{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;align-items:start;font-size:.9rem}
+.task i{width:16px;height:16px;border-radius:5px;border:2px solid var(--line);margin-top:3px}
+.task small{display:block;color:var(--muted)}
+.energy{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.energy .opt{text-align:center;padding:8px 4px}
+
+/* day strip */
+.daystrip{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--line)}
+.daystrip b{display:block;height:100%}
+.legend{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.62rem;color:var(--muted)}
+
+/* intercept */
+.ig{position:absolute;inset:0;background:linear-gradient(160deg,#3a2a4a,#1d2633);display:flex;flex-direction:column}
+.ig-top{padding:40px 18px 0;color:#fff;font-family:var(--display);font-weight:700;opacity:.5}
+.ig-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:12px 4px;opacity:.25}
+.ig-tiles span{aspect-ratio:9/16;background:#fff;border-radius:4px}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--screen);border-radius:28px 28px 0 0;padding:22px 18px 22px;display:flex;flex-direction:column;gap:12px}
+.breath{display:flex;align-items:center;gap:12px}
+.breath .dot{width:44px;height:44px;border-radius:50%;background:var(--urge-soft);display:grid;place-items:center;font-family:var(--mono);color:var(--urge);font-size:.9rem;flex:none}
+@media (prefers-reduced-motion:no-preference){.breath .dot.go{animation:breathe 4s ease-in-out infinite}}
+@keyframes breathe{0%,100%{transform:scale(.9)}50%{transform:scale(1.12)}}
+.choice{display:grid;gap:8px}
+.choice button:disabled{opacity:.4;cursor:not-allowed}
+.close-btn{border:0;border-radius:14px;padding:14px;background:var(--calm);color:#fff;font-weight:700;font-size:1rem}
+:root[data-theme="dark"] .close-btn{color:#06140E}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .close-btn{color:#06140E}}
+
+/* flashcard */
+.flash{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:22px 18px;min-height:200px;display:flex;flex-direction:column;justify-content:center;gap:12px;text-align:center}
+.flash .q{font-family:var(--display);font-size:1.2rem;font-weight:700}
+.flash .a{font-family:var(--mono);font-size:1.3rem;color:var(--accent)}
+.timerbar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.timerbar b{display:block;height:100%;background:var(--accent);width:100%}
+.rate{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+
+/* focus ring */
+.ring{--p:.62;width:220px;height:220px;margin:4px auto 0;border-radius:50%;background:conic-gradient(var(--accent) calc(var(--p)*360deg), var(--line) 0);display:grid;place-items:center}
+.ring>div{width:178px;height:178px;border-radius:50%;background:var(--screen);display:grid;place-items:center;text-align:center}
+.ring .t{font-family:var(--mono);font-size:2.1rem;font-variant-numeric:tabular-nums}
+.ring .s{font-size:.78rem;color:var(--muted)}
+.locked{display:flex;flex-wrap:wrap;gap:6px}
+.locked span{font-size:.78rem;padding:4px 8px;border-radius:8px;background:var(--urge-soft);color:var(--urge)}
+
+/* recap */
+.bul{display:flex;flex-direction:column;gap:6px;font-size:.9rem}
+.bul div{padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.stats div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center}
+.stats b{display:block;font-family:var(--mono);font-size:1.1rem;font-variant-numeric:tabular-nums}
+.stats small{color:var(--muted);font-size:.7rem}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.week span{aspect-ratio:1;border-radius:6px;background:var(--line);display:grid;place-items:center;font-family:var(--mono);font-size:.6rem;color:var(--muted)}
+.week span.on{background:var(--calm);color:var(--screen)}
+
+/* notification */
+.notif{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;font-size:.86rem}
+.notif .ic{width:34px;height:34px;border-radius:10px;background:var(--accent-soft);display:grid;place-items:center;font-family:var(--display);font-weight:800;color:var(--accent)}
+
+/* sections below */
+section.block{display:flex;flex-direction:column;gap:20px}
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px;overflow-x:auto}
+.stack{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:900px){.stack{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.stack{grid-template-columns:minmax(0,1fr)}}
+.plat{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.plat ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:.92rem}
+.plat .risk{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
+.core{background:var(--accent-soft);border-radius:16px;padding:16px 18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+@media (max-width:700px){.core{grid-template-columns:minmax(0,1fr)}}
+.core div{display:flex;flex-direction:column;gap:4px;font-size:.92rem}
+.tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:800px){.tiers{grid-template-columns:minmax(0,1fr)}}
+.tier{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.tier .price{font-family:var(--mono);font-size:.9rem;color:var(--muted)}
+.tier ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:.92rem}
+.tier.main{border:2px solid var(--accent)}
+.evid{width:100%;border-collapse:collapse;font-size:.92rem;min-width:560px}
+.evid th,.evid td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.evid th{font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.lvl{font-family:var(--mono);font-size:.72rem;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.lvl.s{background:var(--calm-soft);color:var(--calm)}
+.lvl.m{background:var(--accent-soft);color:var(--accent)}
+.lvl.w{background:var(--urge-soft);color:var(--urge)}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px}
+footer{color:var(--muted);font-size:.85rem;border-top:1px solid var(--line);padding-top:18px}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Product prototype · working name “Steady”</span>
+    <h1>The strict mode that starts itself, then teaches you something.</h1>
+    <p class="lede">A clickable walkthrough of our version. It keeps what Regain users love (blocking that’s hard to undo), gives it away free, starts it on a schedule so you never have to remember, and turns the urge to scroll into 60 seconds of study.</p>
+    <div class="tag">
+      <span class="chip">Android-first · India + US</span>
+      <span class="chip">Wellness claims only</span>
+      <span class="chip">On-device detection</span>
+      <span class="chip">No streaks</span>
+    </div>
+  </header>
+
+  <section class="proto" aria-label="Clickable prototype">
+    <div>
+      <span class="eyebrow">Core flow</span>
+      <h2>One day with Steady</h2>
+      <ol class="steps" id="steps"></ol>
+      <div class="why" id="why">
+        <span class="eyebrow">Why this screen</span>
+        <p id="whyText"></p>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone">
+        <div class="screen">
+          <div class="status"><span id="clock">16:02</span><span>5G ▮▮▮ 82%</span></div>
+
+          <!-- 1 setup -->
+          <div class="view" data-v="setup">
+            <span class="p-label">Setup · 90 seconds</span>
+            <div class="p-title">What pulls you away?</div>
+            <div class="opts" data-multi>
+              <button class="opt" aria-pressed="true">Instagram Reels</button>
+              <button class="opt" aria-pressed="true">YouTube Shorts</button>
+              <button class="opt" aria-pressed="false">Snapchat Spotlight</button>
+              <button class="opt" aria-pressed="false">BGMI</button>
+              <button class="opt" aria-pressed="false">Chrome</button>
+            </div>
+            <span class="p-label">When should Steady start on its own?</span>
+            <div class="opts" data-multi>
+              <button class="opt" aria-pressed="true">Coaching 4–7 pm</button>
+              <button class="opt" aria-pressed="true">Night study 9–11 pm</button>
+              <button class="opt" aria-pressed="false">Sundays 10 am</button>
+            </div>
+            <span class="p-label">Who holds the key?</span>
+            <div class="opts" data-single>
+              <button class="opt" aria-pressed="false">Me, 30 s wait</button>
+              <button class="opt" aria-pressed="true">A friend</button>
+              <button class="opt" aria-pressed="false">A parent</button>
+            </div>
+            <p class="p-sub">Reels and Shorts are hidden inside the app. Messages and Stories still work.</p>
+            <button class="cta" data-go="today">Start my plan</button>
+          </div>
+
+          <!-- 2 today -->
+          <div class="view" data-v="today" hidden>
+            <div class="row"><span class="p-label">Today · Tue 24 Nov</span><span class="pill">Auto-start on</span></div>
+            <div class="p-title">How’s your energy?</div>
+            <div class="energy" data-single>
+              <button class="opt" aria-pressed="false">Low</button>
+              <button class="opt" aria-pressed="true">Okay</button>
+              <button class="opt" aria-pressed="false">Sharp</button>
+            </div>
+            <div class="card">
+              <span class="p-label">Your day</span>
+              <div class="daystrip" aria-hidden="true">
+                <b style="width:30%;background:var(--line)"></b>
+                <b style="width:18%;background:var(--accent)"></b>
+                <b style="width:22%;background:var(--line)"></b>
+                <b style="width:12%;background:var(--accent)"></b>
+                <b style="width:18%;background:var(--line)"></b>
+              </div>
+              <div class="legend"><span>8 am</span><span>4–7 pm</span><span>9–11 pm</span><span>12 am</span></div>
+            </div>
+            <div class="card">
+              <div class="row"><strong>Physics · Rotational motion</strong><span class="pill acc">in 12 min</span></div>
+              <div class="task"><i></i><div>Open NCERT Ch 7 to page 141<small>First step. Takes 1 minute.</small></div></div>
+              <div class="task"><i></i><div>Read 7.2, just the first page<small>Okay energy: 25-min block</small></div></div>
+              <div class="task"><i></i><div>3 PYQs on moment of inertia</div></div>
+            </div>
+            <button class="cta" data-go="focus">Start now</button>
+            <button class="ghost" data-go="intercept">Try opening Instagram</button>
+          </div>
+
+          <!-- 3 intercept -->
+          <div class="view" data-v="intercept" hidden style="padding:0">
+            <div class="ig">
+              <div class="ig-top">Reels</div>
+              <div class="ig-tiles" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+            </div>
+            <div class="sheet">
+              <div class="breath"><div class="dot" id="breathDot">5</div><div><strong>Breathe once.</strong><div class="p-sub">You opened Reels during Coaching block.</div></div></div>
+              <div class="p-title" style="font-size:1.2rem">What did you come here for?</div>
+              <div class="choice">
+                <button class="close-btn" data-go="today">Close Instagram</button>
+                <button class="ghost" id="swapBtn" data-go="swap" disabled>60-second swap: a flashcard</button>
+                <button class="ghost" id="dmBtn" data-go="today" disabled>Just messages (Reels stay hidden)</button>
+              </div>
+              <div class="row"><span class="p-sub">Reels opens today</span><span class="pill">3 · down from 11</span></div>
+            </div>
+          </div>
+
+          <!-- 4 swap -->
+          <div class="view" data-v="swap" hidden>
+            <div class="row"><span class="p-label">60-second swap</span><span class="pill acc" id="swapTime">0:60</span></div>
+            <div class="timerbar"><b id="swapBar"></b></div>
+            <div class="flash">
+              <span class="p-label">From your notes · Ch 7</span>
+              <div class="q">Moment of inertia of a solid sphere about its diameter?</div>
+              <div class="a" id="ans" hidden>I = ⅖ MR²</div>
+              <button class="ghost" id="reveal">Show answer</button>
+            </div>
+            <div class="rate" id="rate" hidden>
+              <button class="opt">Again</button><button class="opt">Hard</button><button class="opt" aria-pressed="true">Got it</button>
+            </div>
+            <p class="p-sub">Same quick hit as a Reel, but it counts toward Thursday’s review.</p>
+            <button class="cta" data-go="focus">Back to physics</button>
+          </div>
+
+          <!-- 5 focus -->
+          <div class="view" data-v="focus" hidden>
+            <div class="row"><span class="p-label">Coaching block · strict</span><span class="pill urge">Locked until 6:00 pm</span></div>
+            <div class="ring" id="ring"><div><div><div class="t" id="ringT">15:30</div><div class="s">left of 25 min</div></div></div></div>
+            <div class="card">
+              <span class="p-label">Now</span>
+              <strong>Read 7.2, just the first page</strong>
+              <span class="p-sub">Next: 3 PYQs on moment of inertia</span>
+            </div>
+            <span class="p-label">Blocked right now</span>
+            <div class="locked"><span>Reels</span><span>Shorts</span><span>Spotlight</span><span>BGMI</span></div>
+            <p class="p-sub">Emergency unlock asks for a 30-second wait and a typed reason. Your friend gets told.</p>
+            <button class="cta" data-go="recap">Finish block</button>
+          </div>
+
+          <!-- 6 recap -->
+          <div class="view" data-v="recap" hidden>
+            <span class="p-label">Block done · 25 min</span>
+            <div class="p-title">What stuck? Three lines.</div>
+            <div class="bul">
+              <div>I depends on how mass is spread, not just total mass</div>
+              <div>Parallel axis: I = I<sub>cm</sub> + Md²</div>
+              <div>Ring has bigger I than disc of same mass</div>
+            </div>
+            <div class="card"><div class="row"><span>Turned into 4 review cards</span><span class="pill acc">Thu, Sun</span></div></div>
+            <div class="stats">
+              <div><b>48m</b><small>focused today</small></div>
+              <div><b>2</b><small>urges caught</small></div>
+              <div><b>0</b><small>unlocks</small></div>
+            </div>
+            <span class="p-label">This week · goal 4 of 7 days</span>
+            <div class="week"><span class="on">M</span><span class="on">T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+            <p class="p-sub">No streak to lose. Miss a day and the goal just waits.</p>
+            <button class="cta" data-go="partner">See what your friend sees</button>
+          </div>
+
+          <!-- 7 partner -->
+          <div class="view" data-v="partner" hidden>
+            <span class="p-label">Your friend’s phone</span>
+            <div class="p-title">Only the moments that matter</div>
+            <div class="notif"><div class="ic">S</div><div><strong>Riya finished 2 study blocks</strong><br><span class="p-sub">Weekly summary · Sunday</span></div></div>
+            <div class="notif"><div class="ic">S</div><div><strong>Riya asked for an emergency unlock</strong><br><span class="p-sub">“Need YouTube for a lecture link” · Approve for 15 min?</span></div></div>
+            <div class="card">
+              <span class="p-label">Never shared</span>
+              <span class="p-sub">What Riya watched, messages, screen contents, or minute-by-minute usage. Detection runs on her phone only.</span>
+            </div>
+            <button class="ghost" data-go="setup">Start over</button>
+          </div>
+        </div>
+      </div>
+      <div class="phone-nav">
+        <button id="prev" aria-label="Previous screen">← Back</button>
+        <button id="next" aria-label="Next screen">Next →</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div>
+      <span class="eyebrow">The loop</span>
+      <h2>How a distraction turns into a study rep</h2>
+      <p class="lede">The schedule starts strict mode, so the user never has to start it themselves. Every urge is caught on the phone and offered three exits. The easiest exit is closing the app.</p>
+    </div>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  A[Schedule or location<br/>starts a block] --> B[Strict mode on<br/>Reels and Shorts hidden]
+  B --> C{User opens a<br/>blocked surface}
+  C --> D[5 second breath<br/>plus intent question]
+  D -->|Close app| E[Back to task step]
+  D -->|60s swap| F[Flashcard from<br/>own notes]
+  D -->|Just messages| G[App opens with<br/>Reels still hidden]
+  F --> E
+  G --> E
+  C -->|Emergency unlock| H[30s wait plus<br/>typed reason]
+  H --> I[Key holder notified<br/>can approve 15 min]
+  I --> E
+  E --> J[Block ends]
+  J --> K[3-line recall]
+  K --> L[Cards scheduled<br/>for spaced review]
+  L --> M[Weekly flexible goal<br/>no streaks]
+  M --> A
+</pre>
+    </div>
+  </section>
+
+  <section class="block">
+    <div>
+      <span class="eyebrow">How it works underneath</span>
+      <h2>One set of rules, enforced differently on each device</h2>
+      <p class="lede">The rules engine lives on the phone and syncs schedules, not screen contents. Each platform uses the strongest blocking it officially allows, and steps down to a simpler block if Instagram or YouTube changes its layout.</p>
+    </div>
+    <div class="core">
+      <div><h3>Rules engine</h3><span>Schedules, blocked surfaces, key holder, unlock costs. Synced across devices.</span></div>
+      <div><h3>Detector updates</h3><span>Pushed as remote config with health checks, so a layout change in Instagram is fixed in hours, not an app release.</span></div>
+      <div><h3>Honest status</h3><span>If blocking gets weaker, the user sees “Reels detection paused, whole app blocked instead.”</span></div>
+    </div>
+    <div class="stack">
+      <div class="plat"><h3>Android</h3><ol><li>Hide Reels and Shorts inside the app (Accessibility, with clear disclosure)</li><li>Fallback: block the whole app</li><li>Fallback: block by domain on the phone</li></ol><p class="risk">Risk: Play policy and Android 17 Advanced Protection can turn off Accessibility.</p></div>
+      <div class="plat"><h3>iOS</h3><ol><li>Screen Time API blocks whole apps on schedule</li><li>Shortcuts automation shows the breath screen</li><li>Web Shorts hidden in Safari extension</li></ol><p class="risk">Limit: Apple doesn’t allow hiding only part of another app. We say so up front.</p></div>
+      <div class="plat"><h3>Chrome / laptop</h3><ol><li>Extension hides Shorts shelf and Reels on web</li><li>Site blocks follow the same schedule</li><li>Same unlock cost and key holder</li></ol><p class="risk">Most durable layer. Closes the “I’ll just use my laptop” loophole.</p></div>
+      <div class="plat"><h3>Key holder</h3><ol><li>Friend or parent gets bypass alerts only</li><li>Approves emergency unlocks</li><li>Weekly summary, never content</li></ol><p class="risk">Parent-held key fits Indian students; consent rules apply under 18.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div>
+      <span class="eyebrow">Evidence check</span>
+      <h2>What each feature rests on</h2>
+    </div>
+    <div class="tablewrap">
+      <table class="evid">
+        <thead><tr><th>Feature</th><th>Evidence</th><th>Level</th></tr></thead>
+        <tbody>
+          <tr><td>Breath screen with an easy “close” option</td><td>PNAS 2023 one sec study: 36% of opens dismissed, 37% fewer attempts</td><td><span class="lvl s">Strong</span></td></tr>
+          <tr><td>Scheduled strict mode, costly unlock</td><td>Allcott et al. trial, about 2,000 adults: pre-committed limits cut use</td><td><span class="lvl s">Strong</span></td></tr>
+          <tr><td>Recall lines and spaced cards</td><td>Retrieval practice helps ADHD students as much as peers</td><td><span class="lvl s">Strong</span></td></tr>
+          <tr><td>Tiny first step, visual time ring</td><td>ADHD meta-analyses on delay aversion and time perception; no app trials</td><td><span class="lvl m">Mechanism</span></td></tr>
+          <tr><td>Energy check-in sets block length</td><td>Rigid Pomodoro raised fatigue in a 2025 study; self-paced did better</td><td><span class="lvl m">Mechanism</span></td></tr>
+          <tr><td>No streaks, flexible weekly goal</td><td>No controlled studies either way; chosen to avoid shame and dropout</td><td><span class="lvl w">Untested</span></td></tr>
+          <tr><td>Key holder and co-study rooms</td><td>Body doubling has no controlled adult trials yet</td><td><span class="lvl w">Untested</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block">
+    <div>
+      <span class="eyebrow">Plans</span>
+      <h2>Strict mode stays free</h2>
+      <p class="lede">Regain charges for the one mechanic that works. We charge for depth and scale instead.</p>
+    </div>
+    <div class="tiers">
+      <div class="tier"><h3>Free</h3><span class="price">₹0 · $0</span><ul><li>Strict mode, 2 schedules</li><li>Reels and Shorts hiding</li><li>Breath screen and swap</li><li>1 key holder</li></ul></div>
+      <div class="tier main"><h3>Plus</h3><span class="price">₹149/mo or ₹999/yr · $4.99/mo or $39/yr</span><ul><li>Unlimited schedules and devices</li><li>Chrome and laptop blocking</li><li>Notes to flashcards, spaced review</li><li>Task breakdown help</li><li>One-tap cancel, renewal reminder</li></ul></div>
+      <div class="tier"><h3>Institutes</h3><span class="price">Per student, per year</span><ul><li>Coaching and school licences</li><li>Batch schedules pushed by the institute</li><li>Aggregate focus reports only</li><li>Parent key holder setup</li></ul></div>
+    </div>
+  </section>
+
+  <footer>Prototype for discussion. Screens use sample data (student “Riya”, NCERT physics). Prices are proposals to test, not decisions. Evidence levels summarise the research report in this repo.</footer>
+</div>
+
+<script>
+(function(){
+  const order=["setup","today","intercept","swap","focus","recap","partner"];
+  const meta={
+    setup:["Setup","Pick distractions, schedules and a key holder.","Blockers you have to start yourself fail for people who struggle to start tasks. Schedules and a key holder chosen once at setup do the starting for them."],
+    today:["Today","Energy check-in, day strip, one tiny first step.","Breaking work into steps has CBT-style evidence. A one-minute first step lowers the barrier to starting. The day strip makes time visible for people who struggle to feel it passing."],
+    intercept:["The urge","Opening Reels triggers a 5-second breath and three exits.","In the one sec study, the easy “don’t open” option did most of the work. So closing the app is the biggest, greenest button and is available right away."],
+    swap:["60-second swap","Turn the urge into one flashcard from your own notes.","ADHD brains want something new right now. The swap gives a quick hit that also counts as retrieval practice, instead of just saying no."],
+    focus:["Focus block","Shrinking ring, current step, locked list, costly unlock.","Pre-committed limits that are costly to override reduced phone use in a 2,000-person trial. The unlock asks for a wait and a reason, and the key holder is told."],
+    recap:["Recall","Three lines become spaced review cards. No streaks.","Retrieval practice works for ADHD students. A flexible weekly goal avoids the shame of a broken streak that makes people quit."],
+    partner:["Key holder","Friend or parent sees bypasses and summaries, not content.","Students already “give the phone to mom.” This makes that official while keeping screen contents private on the student’s phone."]
+  };
+  const stepsEl=document.getElementById("steps");
+  order.forEach((k,i)=>{
+    const li=document.createElement("li");
+    li.innerHTML=`<button data-step="${k}"><span class="n">${String(i+1).padStart(2,"0")}</span><span><strong>${meta[k][0]}</strong><span class="d">${meta[k][1]}</span></span></button>`;
+    stepsEl.appendChild(li);
+  });
+  let cur="setup", timers=[];
+  const clear=()=>{timers.forEach(clearInterval);timers=[];};
+  function show(k){
+    clear(); cur=k;
+    document.querySelectorAll(".view").forEach(v=>v.hidden=v.dataset.v!==k);
+    stepsEl.querySelectorAll("button").forEach(b=>b.setAttribute("aria-current",b.dataset.step===k?"step":"false"));
+    document.getElementById("whyText").textContent=meta[k][2];
+    document.getElementById("clock").textContent={setup:"08:10",today:"15:48",intercept:"16:07",swap:"16:07",focus:"16:16",recap:"16:42",partner:"16:43"}[k];
+    if(k==="intercept") startBreath();
+    if(k==="swap") startSwap();
+    if(k==="focus") startRing();
+  }
+  function startBreath(){
+    let n=5; const dot=document.getElementById("breathDot");
+    const s=document.getElementById("swapBtn"), d=document.getElementById("dmBtn");
+    s.disabled=d.disabled=true; dot.textContent=n; dot.classList.add("go");
+    timers.push(setInterval(()=>{n--; if(n<=0){dot.textContent="✓";dot.classList.remove("go");s.disabled=d.disabled=false;clear();} else dot.textContent=n;},1000));
+  }
+  function startSwap(){
+    let t=60; const el=document.getElementById("swapTime"), bar=document.getElementById("swapBar");
+    document.getElementById("ans").hidden=true; document.getElementById("rate").hidden=true; document.getElementById("reveal").hidden=false;
+    el.textContent="1:00"; bar.style.width="100%";
+    timers.push(setInterval(()=>{t--; if(t<0){clear();return;} el.textContent="0:"+String(t).padStart(2,"0"); bar.style.width=(t/60*100)+"%";},1000));
+  }
+  function startRing(){
+    let s=15*60+30; const ring=document.getElementById("ring"), t=document.getElementById("ringT");
+    const draw=()=>{ring.style.setProperty("--p",(s/1500).toFixed(3)); t.textContent=Math.floor(s/60)+":"+String(s%60).padStart(2,"0");};
+    draw(); timers.push(setInterval(()=>{s=Math.max(0,s-1);draw();},1000));
+  }
+  document.getElementById("reveal").addEventListener("click",e=>{document.getElementById("ans").hidden=false;document.getElementById("rate").hidden=false;e.currentTarget.hidden=true;});
+  document.addEventListener("click",e=>{
+    const go=e.target.closest("[data-go]"); if(go&&!go.disabled){show(go.dataset.go);return;}
+    const st=e.target.closest("[data-step]"); if(st){show(st.dataset.step);return;}
+    const opt=e.target.closest(".opt"); if(opt){
+      const grp=opt.parentElement;
+      if(grp.hasAttribute("data-single")||grp.id==="rate"){grp.querySelectorAll(".opt").forEach(o=>o.setAttribute("aria-pressed","false"));opt.setAttribute("aria-pressed","true");}
+      else opt.setAttribute("aria-pressed",opt.getAttribute("aria-pressed")==="true"?"false":"true");
+    }
+  });
+  document.getElementById("next").addEventListener("click",()=>show(order[Math.min(order.length-1,order.indexOf(cur)+1)]));
+  document.getElementById("prev").addEventListener("click",()=>show(order[Math.max(0,order.indexOf(cur)-1)]));
+  show("setup");
+})();
+</script>
