@@ -21,9 +21,15 @@ export function renderStatus(status: PublishedStatus | null, hasPlan: boolean, n
   $("sync").textContent = v.sync;
 }
 
+export function renderAuthNotice(notice: string | null): void {
+  $("authBox").hidden = !notice;
+  $("authNotice").textContent = notice ?? "";
+}
+
 async function refresh(): Promise<void> {
-  const [status, plan] = await Promise.all([read("status"), read("plan")]);
+  const [status, plan, notice] = await Promise.all([read("status"), read("plan"), read("authNotice")]);
   renderStatus(status, !!plan);
+  renderAuthNotice(notice);
 }
 
 $("syncBtn").addEventListener("click", () => {
@@ -32,6 +38,7 @@ $("syncBtn").addEventListener("click", () => {
   void chrome.runtime.sendMessage(msg).then(refresh);
 });
 $("optionsBtn").addEventListener("click", () => void chrome.runtime.openOptionsPage());
+$("signInBtn").addEventListener("click", () => void chrome.runtime.openOptionsPage());
 
 void (async () => {
   // Ask the worker for a fresh computation, then render.

@@ -3,9 +3,14 @@ info:
   title: Steady API
   version: 1.0.0
   description: |
-    Backend for Steady (Phase 9). Syncs the Plan, pairs a key holder who approves
-    emergency unlocks, stores aggregate focus sessions, serves detector configs and
-    reports entitlements.
+    Backend for Steady (Phase 9, extended in Phase 12). Syncs the Plan, pairs a key
+    holder who approves emergency unlocks, stores aggregate focus sessions, serves
+    detector configs, verifies Play purchases and reports entitlements.
+
+    Bearer tokens expire after 90 days without use (sliding: every authenticated
+    request extends them). An expired token gets 401 `token_expired`; sign in again.
+    Every response carries `X-Request-Id` (an incoming `X-Request-Id` of 8-64
+    `[A-Za-z0-9._-]` is echoed).
 
     Privacy rule: every request body is validated strictly. Any field not listed in
     the schema is rejected with 400 `invalid_body`, so screen contents can never be
@@ -36,12 +41,24 @@ paths:
         "204": { description: Code sent }
         "400": { $ref: "#/components/responses/BadRequest" }
         "429": { $ref: "#/components/responses/RateLimited" }
+        "502":
+          description: The email/SMS provider failed (`otp_send_failed`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: No code sender configured on a production server (`otp_not_configured`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /v1/auth/otp/verify:
     post:
       operationId: otpVerify
       summary: Exchange a code for a bearer token
-      description: Creates the user on first sign-in. A code is single use and locks after 5 wrong attempts.
+      description: |
+        Creates the user on first sign-in. A code is single use and locks after 5 wrong attempts.
+        Limited to 30 attempts per client IP per 15 minutes (429).
       security: []
       requestBody:
         required: true
@@ -60,6 +77,36 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/RateLimitedVerify" }
+
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke the calling token
+      description: Other tokens of the same user (other devices) stay valid.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Empty" }
+      responses:
+        "204": { description: Token revoked }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/me:
+    delete:
+      operationId: deleteMe
+      summary: Erase the caller's account and all synced data
+      description: |
+        Deletes, in one transaction, the plan, sessions, unlock requests, invites,
+        key-holder links in both directions, entitlements, verified purchases, one-time
+        codes, every token and the user record. Unlock requests the caller decided for
+        another owner are kept for that owner without the caller's id. Signing in again
+        with the same contact creates a new, empty account.
+      responses:
+        "204": { description: Erased }
+        "401": { $ref: "#/components/responses/Unauthorized" }
 
   /v1/plan:
     get:
@@ -79,6 +126,10 @@ paths:
       description: |
         `version` must equal the stored version + 1 (the first PUT must be version 1).
         Otherwise 409 with the current stored plan (or null if none is stored).
+        `app:` surfaces may not target protected packages (com.android.settings,
+        com.google.android.packageinstaller, com.android.packageinstaller, com.android.vending,
+        com.google.android.dialer, com.android.phone, com.android.emergency, app.steady):
+        400 `protected_app`.
       requestBody:
         required: true
         content:
@@ -90,7 +141,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Plan" }
-        "400": { $ref: "#/components/responses/BadRequest" }
+        "400":
+          description: Invalid JSON or body (`invalid_json`, `invalid_body`) or a protected app (`protected_app`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "409":
           description: Version conflict (`version_conflict`)
@@ -161,11 +216,102 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: |
+            The owner is on the free tier and already has a key holder (`keyholder_limit`).
+            The invite is not consumed, so it works once the owner upgrades or removes
+            their current key holder. Re-accepting by the already-linked key holder is fine.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "410":
           description: Invite already used (`invite_used`) or expired (`invite_expired`)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/keyholder/links:
+    get:
+      operationId: listKeyholderLinks
+      summary: Owner view — the caller's key holders
+      responses:
+        "200":
+          description: Links, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/KeyholderLink" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/keyholder/owners:
+    get:
+      operationId: listKeyholderOwners
+      summary: Key-holder view — owners whose key the caller holds
+      responses:
+        "200":
+          description: Links, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OwnerLink" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/keyholder/links/{linkId}:
+    delete:
+      operationId: deleteKeyholderLink
+      summary: Remove a key-holder link (owner or key holder)
+      description: Pending unlock requests stay pending; new requests need a linked key holder.
+      parameters:
+        - name: linkId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Removed }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: No such link, or the caller is neither side of it (`not_found`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/keyholder/summary:
+    get:
+      operationId: keyholderWeeklySummary
+      summary: An owner's weekly summary, for their linked key holder
+      description: |
+        Same body and rules as `GET /v1/summary/weekly`, for the owner `ownerUserId`.
+        404 unless the caller is that owner's linked key holder (unknown and unlinked
+        owners look the same).
+      parameters:
+        - name: ownerUserId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: weekStart
+          in: query
+          required: true
+          schema: { type: string, format: date, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+        - name: tz
+          in: query
+          required: false
+          description: IANA time zone, e.g. Asia/Kolkata. Defaults to UTC.
+          schema: { type: string, default: UTC }
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WeeklySummary" }
+        "400":
+          description: Missing ownerUserId, bad weekStart or tz (`invalid_query`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   /v1/keyholder/requests:
     get:
@@ -317,6 +463,49 @@ paths:
               schema: { $ref: "#/components/schemas/Entitlement" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /v1/billing/verify:
+    post:
+      operationId: verifyPurchase
+      summary: Verify a Google Play subscription purchase and upgrade to Plus
+      description: |
+        The server checks the token through its `PurchaseVerifier` (Google Play
+        `purchases.subscriptionsv2.get` when configured). Without Play credentials a
+        non-production server accepts tokens starting with `test-`; a production server
+        answers 503 `billing_not_configured`. Re-verifying a token the caller already
+        owns (restore) succeeds. Purchase tokens are stored hashed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillingVerifyRequest" }
+      responses:
+        "200":
+          description: Verified; the new entitlement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Entitlement" }
+        "400":
+          description: Invalid body (`invalid_body`) or the store rejected the purchase (`purchase_invalid`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: The purchase token is already bound to another account (`purchase_in_use`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: The store could not be reached (`billing_unavailable`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: No verifier configured (`billing_not_configured`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
 components:
   securitySchemes:
     bearer:
@@ -338,7 +527,7 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     Unauthorized:
-      description: Missing or invalid bearer token (`unauthorized`)
+      description: Missing or invalid bearer token (`unauthorized`), or a token unused for 90 days (`token_expired`)
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -349,6 +538,11 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     RateLimited:
       description: Too many requests (`rate_limited`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimitedVerify:
+      description: Too many verify attempts from this IP (`rate_limited`)
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -388,7 +582,9 @@ components:
           type: string
           minLength: 1
           maxLength: 60
-          description: Optional display name shown to key holders (additive to the contract).
+          description: |
+            Optional display name shown to key holders (additive to the contract). Without one,
+            new users are shown as "Your friend"; nothing is derived from the contact.
 
     AuthToken:
       type: object
@@ -542,3 +738,31 @@ components:
           type: array
           items:
             enum: [unlimited_schedules, desktop_sync, notes_to_cards, task_breakdown]
+
+    KeyholderLink:
+      type: object
+      additionalProperties: false
+      required: [linkId, keyHolderUserId, keyHolderName, createdAt]
+      properties:
+        linkId: { type: string }
+        keyHolderUserId: { type: string }
+        keyHolderName: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    OwnerLink:
+      type: object
+      additionalProperties: false
+      required: [linkId, ownerUserId, ownerName, createdAt]
+      properties:
+        linkId: { type: string }
+        ownerUserId: { type: string }
+        ownerName: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    BillingVerifyRequest:
+      type: object
+      additionalProperties: false
+      required: [productId, purchaseToken]
+      properties:
+        productId: { enum: [steady_plus_monthly, steady_plus_yearly] }
+        purchaseToken: { type: string, minLength: 1, maxLength: 4096 }

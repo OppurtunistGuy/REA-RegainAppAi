@@ -47,9 +47,17 @@
         <input type="text" id="reason" autocomplete="off" maxlength="200" placeholder="e.g. lecture link my teacher sent">
       </label>
       <p class="note" id="keyholderNote" hidden></p>
-      <p class="sub">Your reason stays on this computer. Nothing about this page is sent anywhere.</p>
+      <p class="sub" id="privacyLine">Your reason stays on this computer. Nothing about this page is sent anywhere.</p>
+      <p class="note err" id="unlockError" role="alert" hidden></p>
       <button class="cta" id="unlockConfirm" disabled>Unlock</button>
       <button class="ghost" id="unlockCancel">Never mind</button>
+    </section>
+
+    <section id="waitingPanel" class="stack" hidden>
+      <h2 class="title" id="waitingTitle">Asked your key holder</h2>
+      <p class="sub" id="waitingText">Waiting for an answer.</p>
+      <button class="close-btn" id="waitingClose">Back to study (close tab)</button>
+      <button class="ghost" id="waitingBack">Back</button>
     </section>
 
     <section id="idlePanel" class="stack" hidden>

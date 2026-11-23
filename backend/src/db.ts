@@ -90,12 +90,45 @@ const MIGRATIONS: string[] = [
     updated_at  INTEGER NOT NULL
   );
   `,
+
+  // 2 — Phase 12: sliding token expiry, key-holder link ids, verified purchases.
+  `
+  ALTER TABLE tokens ADD COLUMN last_used_at INTEGER;
+  UPDATE tokens SET last_used_at = created_at;
+  CREATE INDEX tokens_user ON tokens(user_id);
+
+  CREATE TABLE keyholder_links_v2 (
+    id                 TEXT PRIMARY KEY,
+    owner_user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    keyholder_user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at         INTEGER NOT NULL,
+    UNIQUE (owner_user_id, keyholder_user_id)
+  );
+  INSERT INTO keyholder_links_v2 (id, owner_user_id, keyholder_user_id, created_at)
+    SELECT lower(hex(randomblob(16))), owner_user_id, keyholder_user_id, created_at FROM keyholder_links;
+  DROP TABLE keyholder_links;
+  ALTER TABLE keyholder_links_v2 RENAME TO keyholder_links;
+  CREATE INDEX keyholder_links_kh ON keyholder_links(keyholder_user_id);
+
+  CREATE TABLE purchases (
+    token_hash   TEXT PRIMARY KEY,
+    user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    product_id   TEXT NOT NULL,
+    verified_at  INTEGER NOT NULL,
+    expires_at   INTEGER
+  );
+  CREATE INDEX purchases_user ON purchases(user_id);
+  `,
 ];
 
-export function migrate(db: Db): void {
+/** Applies pending migrations. `upTo` (tests only) stops after that many. */
+export function migrate(db: Db, upTo = MIGRATIONS.length): void {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   const current = row.user_version;
-  for (let i = current; i < MIGRATIONS.length; i++) {
+  if (current > MIGRATIONS.length) {
+    throw new Error(`Database schema v${current} is newer than this build (v${MIGRATIONS.length})`);
+  }
+  for (let i = current; i < Math.min(upTo, MIGRATIONS.length); i++) {
     db.exec("BEGIN");
     try {
       db.exec(MIGRATIONS[i]!);
@@ -113,6 +146,7 @@ export function openDb(path = ":memory:"): Db {
   const db = new DatabaseSync(path);
   db.exec("PRAGMA foreign_keys = ON");
   if (path !== ":memory:") db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA busy_timeout = 5000");
   migrate(db);
   return db;
 }

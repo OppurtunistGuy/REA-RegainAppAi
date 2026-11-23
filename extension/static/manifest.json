@@ -7,10 +7,7 @@
   "permissions": ["storage", "alarms", "declarativeNetRequest"],
   "host_permissions": [
     "*://*.youtube.com/*",
-    "*://*.instagram.com/*",
-    "https://api.steady.app/*",
-    "http://localhost/*",
-    "http://127.0.0.1/*"
+    "*://*.instagram.com/*"
   ],
   "optional_host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },

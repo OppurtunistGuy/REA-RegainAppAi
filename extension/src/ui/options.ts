@@ -1,6 +1,7 @@
 // Options page: API base URL, OTP sign-in, current state + next block, site permissions.
 
-import { otpStart, otpVerify } from "../api.js";
+import { logout, otpStart, otpVerify } from "../api.js";
+import { DEV_BUILD } from "../buildinfo.js";
 import { originsFor, planDomains } from "../policy.js";
 import { read, write, type Settings } from "../storage.js";
 import type { Message, Plan } from "../types.js";
@@ -56,7 +57,11 @@ async function save(): Promise<void> {
   const base = $<HTMLInputElement>("apiBase").value.trim().replace(/\/+$/, "");
   const origin = apiOrigin(base);
   if (!origin) {
-    say("saveMsg", "That doesn't look like an http(s) URL.", "err");
+    say(
+      "saveMsg",
+      DEV_BUILD ? "That doesn't look like an http(s) URL." : "Use an https:// address for the server.",
+      "err",
+    );
     return;
   }
   // chrome.permissions.request must run inside the click, before any other await.
@@ -96,6 +101,7 @@ async function verifyOtp(): Promise<void> {
   try {
     const { token, userId } = await otpVerify(settings.apiBase, contact, code);
     settings = { ...settings, token, userId };
+    await write("authNotice", null);
     await write("settings", settings); // background syncs on this change
     renderSignIn();
     say("signMsg", "Signed in. Fetching your plan…", "ok");
@@ -109,6 +115,8 @@ async function verifyOtp(): Promise<void> {
 }
 
 async function signOut(): Promise<void> {
+  // Revoke the token on the server too (best effort: offline sign-out still forgets it here).
+  if (settings.token) await logout(settings.apiBase, settings.token).catch(() => undefined);
   settings = { ...settings, token: null, userId: null };
   await write("settings", settings);
   renderSignIn();
@@ -119,6 +127,8 @@ async function main(): Promise<void> {
   settings = await read("settings");
   $<HTMLInputElement>("apiBase").value = settings.apiBase;
   renderSignIn();
+  const notice = await read("authNotice");
+  if (notice && !settings.token) say("signMsg", notice, "err");
   await renderState();
   $("saveBtn").addEventListener("click", () => void save());
   $("startBtn").addEventListener("click", () => void startOtp());
@@ -126,6 +136,14 @@ async function main(): Promise<void> {
   $("signOutBtn").addEventListener("click", () => void signOut());
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && (changes.status || changes.plan)) void renderState();
+    if (area === "local" && changes.authNotice?.newValue) {
+      // The server rejected the token while this page was open (e.g. token_expired).
+      void read("settings").then((s) => {
+        settings = s;
+        renderSignIn();
+        say("signMsg", String(changes.authNotice!.newValue), "err");
+      });
+    }
   });
 }
 

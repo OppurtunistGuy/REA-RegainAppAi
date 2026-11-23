@@ -46,13 +46,13 @@ describe("key holder invites", () => {
     expect(await res.json()).toEqual({ ownerUserId: owner.userId, ownerName: "Riya" });
   });
 
-  it("default owner name is derived from contact", async () => {
+  it("without a name the owner shows as \"Your friend\", never part of the contact", async () => {
     const h = harness();
     const owner = await h.login("riya@example.com");
     const kh = await h.login("+919800001234");
     const { code } = (await (await h.req("POST", "/v1/keyholder/invites", { token: owner.token })).json()) as { code: string };
     const res = await h.req("POST", `/v1/keyholder/invites/${code}/accept`, { token: kh.token });
-    expect(((await res.json()) as { ownerName: string }).ownerName).toBe("riya");
+    expect(((await res.json()) as { ownerName: string }).ownerName).toBe("Your friend");
   });
 
   it("invite is single use", async () => {

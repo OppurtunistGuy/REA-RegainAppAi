@@ -30,7 +30,7 @@ const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const now = new Date();
 const start = new Date(now.getTime() - 60 * 60_000);
 const end = new Date(now.getTime() + 2 * 60 * 60_000);
-const plan = {
+let plan = {
   version: 1,
   distractions: [
     { id: "youtube.shorts", mode: "hide_section" },
@@ -46,6 +46,8 @@ if (end.getDate() !== start.getDate() || hhmm(end) <= hhmm(start)) {
 }
 
 const requests = [];
+const unlockBodies = [];
+let tokenExpired = false;
 const YT_HOME = `<!doctype html><html><body>
 <ytd-app><ytd-rich-grid-renderer>
   <ytd-rich-item-renderer id="video"><a href="/watch?v=1">A lecture</a></ytd-rich-item-renderer>
@@ -68,6 +70,20 @@ const server = createServer((req, res) => {
   res.setHeader("access-control-allow-origin", "*");
   res.setHeader("access-control-allow-headers", "authorization, content-type");
   if (req.method === "OPTIONS") return res.writeHead(204).end();
+  const json = (code, body) => res.writeHead(code, { "content-type": "application/json" }).end(JSON.stringify(body));
+  if (tokenExpired) return json(401, { error: { code: "token_expired", message: "expired" } });
+  if (req.method === "POST" && req.url === "/v1/unlock-requests") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      unlockBodies.push(JSON.parse(body));
+      json(201, { id: "r1", status: "pending" });
+    });
+    return;
+  }
+  if (req.method === "GET" && req.url === "/v1/unlock-requests/r1") {
+    return json(200, { id: "r1", status: "approved", until: new Date(Date.now() + 15 * 60_000).toISOString() });
+  }
   if (req.url === "/v1/plan") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(plan));
   if (req.url === "/v1/detectors")
     return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ version: 1, detectors: [] }));
@@ -196,10 +212,76 @@ try {
   }
   console.log("ok - popup and options show the active block");
 
-  // Privacy: the API only saw GETs for plan/detectors.
+  // 7. With a key holder, the unlock asks the backend and applies the approval.
+  plan = {
+    ...plan,
+    version: 2,
+    keyHolder: { id: "kh", name: "Asha", relation: "friend" },
+    unlockPolicy: { ...plan.unlockPolicy, notifyKeyHolder: true },
+  };
+  await worker.evaluate(
+    (base) => chrome.storage.local.set({ grants: [], settings: { apiBase: base, token: "e2e-token-2", userId: "u1" } }),
+    `http://127.0.0.1:${port}`,
+  );
+  await worker.evaluate(async () => {
+    for (let i = 0; i < 50; i++) {
+      const { plan } = await chrome.storage.local.get("plan");
+      if (plan?.value?.keyHolder) return;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    throw new Error("plan with key holder never synced");
+  });
+  const khPage = await context.newPage();
+  await khPage.goto(`http://www.youtube.com/shorts/kh`).catch(() => undefined);
+  await khPage.waitForURL(/interstitial\.html/, { timeout: 5000 });
+  await khPage.waitForFunction(() => !document.querySelector("#unlockBtn").disabled, null, { timeout: 8000 });
+  await khPage.click("#unlockBtn");
+  await khPage.fill("#reason", "teacher posted the lecture");
+  await khPage.waitForFunction(() => !document.querySelector("#unlockConfirm").disabled, null, { timeout: 5000 });
+  assert.match(await khPage.textContent("#unlockConfirm"), /Ask Asha/);
+  await khPage.click("#unlockConfirm");
+  await khPage.waitForSelector("#waitingPanel:not([hidden])", { timeout: 5000 });
+  // First poll is 10 s after the request.
+  await khPage.waitForURL(/^http:\/\/www\.youtube\.com\/shorts\/kh/, { timeout: 20_000 });
+  assert.deepEqual(unlockBodies, [{ surfaceId: "youtube.shorts", reason: "teacher posted the lecture" }]);
+  const grants = await worker.evaluate(() => chrome.storage.local.get("grants").then((g) => g.grants));
+  assert.ok(grants.some((g) => g.id === "r1" && g.approvedBy === "Asha"), JSON.stringify(grants));
+  await khPage.close();
+  console.log("ok - key-holder unlock: POST /v1/unlock-requests, poll, approval applied");
+
+  // 8. An expired token (401 token_expired) signs the browser out and the popup asks to sign in.
+  tokenExpired = true;
+  await worker.evaluate(
+    (base) => chrome.storage.local.set({ settings: { apiBase: base, token: "e2e-token-3", userId: "u1" } }),
+    `http://127.0.0.1:${port}`,
+  );
+  await worker.evaluate(async () => {
+    for (let i = 0; i < 50; i++) {
+      const { authNotice, settings } = await chrome.storage.local.get(["authNotice", "settings"]);
+      if (authNotice && !settings.token) return;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    throw new Error("authNotice never set");
+  });
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extId}/popup.html`);
+  await popup.waitForSelector("#authBox:not([hidden])", { timeout: 5000 });
+  assert.match(await popup.textContent("#authNotice"), /expired/);
+  await popup.close();
+  console.log("ok - token_expired: signed out, popup asks to sign in again");
+
+  // Privacy: the API only saw the expected calls.
   const apiCalls = requests.filter((r) => r.includes(`127.0.0.1:${port}`));
-  assert.ok(apiCalls.every((r) => /^GET .* \/v1\/(plan|detectors)$/.test(r) || r.startsWith("OPTIONS")), apiCalls.join("\n"));
-  console.log("ok - only GET /v1/plan and /v1/detectors reached the API");
+  assert.ok(
+    apiCalls.every(
+      (r) =>
+        /^GET .* \/v1\/(plan|detectors|unlock-requests\/r1)$/.test(r) ||
+        /^POST .* \/v1\/unlock-requests$/.test(r) ||
+        r.startsWith("OPTIONS"),
+    ),
+    apiCalls.join("\n"),
+  );
+  console.log("ok - only plan/detectors GETs and the unlock request (surface + reason) reached the API");
 } catch (e) {
   failed = true;
   console.error("FAIL", e);

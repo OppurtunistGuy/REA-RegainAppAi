@@ -39,3 +39,4 @@ body {
 }
 .flash .q { font-family: var(--display); font-size: 1.15rem; font-weight: 700; }
 .note { font-size: .9rem; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--ink); }
+.note.err { background: var(--urge-soft); color: var(--ink); }

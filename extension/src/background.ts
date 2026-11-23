@@ -1,9 +1,9 @@
 // Service worker. Pulls the plan + detectors, computes block state every minute, publishes it to
 // chrome.storage.local for the content scripts / popup, and keeps declarativeNetRequest rules in sync.
 
-import { ApiError, fetchDetectors, fetchPlan } from "./api.js";
+import { ApiError, authMessage, fetchDetectors, fetchPlan } from "./api.js";
 import { buildDnrRules, computeStatus, isPlan, nextTransition, originsFor, pruneGrants } from "./policy.js";
-import { read, write } from "./storage.js";
+import { markSignedOut, read, write } from "./storage.js";
 import type { Message, PublishedStatus } from "./types.js";
 import { systemZone } from "./tz.js";
 
@@ -19,7 +19,7 @@ async function ensureAlarms(): Promise<void> {
 async function sync(): Promise<void> {
   const settings = await read("settings");
   if (!settings.token) {
-    await write("lastSyncError", "Not signed in");
+    await write("lastSyncError", (await read("authNotice")) ?? "Not signed in");
     return;
   }
   try {
@@ -41,13 +41,15 @@ async function sync(): Promise<void> {
     await write("lastSyncError", null);
   } catch (e) {
     // Offline or server error: keep enforcing the last cached plan.
-    const msg =
-      e instanceof ApiError && e.status === 401
-        ? "Signed out on the server. Sign in again in Options."
-        : e instanceof Error
-          ? e.message
-          : String(e);
-    await write("lastSyncError", msg);
+    if (e instanceof ApiError && e.isAuth) {
+      // Revoked or expired (401 token_expired after 90 idle days): forget the token so popup and
+      // options ask to sign in again. The cached plan keeps working meanwhile.
+      const notice = authMessage(e.code);
+      await write("lastSyncError", notice);
+      await markSignedOut(notice);
+      return;
+    }
+    await write("lastSyncError", e instanceof Error ? e.message : String(e));
   }
 }
 

@@ -9,10 +9,15 @@
     .state { font-family: var(--display); font-weight: 800; font-size: 1.15rem; line-height: 1.2; }
     .links { display: flex; gap: 8px; }
     .links button { padding: 8px; font-size: .9rem; }
+    .auth { background: var(--urge-soft); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
   </style>
 </head>
 <body>
   <div class="row"><span class="eyebrow">Steady</span><span class="pill" id="pill">idle</span></div>
+  <div class="auth" id="authBox" hidden>
+    <span id="authNotice"></span>
+    <button class="cta" id="signInBtn">Sign in again</button>
+  </div>
   <div class="card">
     <div class="state" id="headline">Loading…</div>
     <div class="sub" id="timeLeft" hidden></div>
