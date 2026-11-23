@@ -1,45 +1,89 @@
 # android/app — Steady Android app
 
-Compose app shell (Phase 5): theme, navigation, local-first data layer, DI, and the Setup and Today
-screens. Screens owned by later phases are stubs with fixed signatures (see `docs/CONTRACTS.md`).
+Compose app (single activity) for Steady: Setup → Today → Focus, the intercept overlay that hides
+Reels / Shorts / Spotlight / Facebook Reels during scheduled blocks, flashcard swaps and review,
+insights, and the optional account features (sync, key holder, Plus).
 
 ## Build and test
 
 ```
 cd android
-./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --console=plain
+./gradlew build --console=plain --max-workers=2     # all modules: compile, unit tests (debug + release), lint
+./gradlew :app:testDebugUnitTest                     # app unit tests only
 ```
 
-`android/local.properties` must contain `sdk.dir=/opt/android-sdk` (git-ignored).
-Unit tests are plain JVM (JUnit 4 + kotlinx-coroutines-test); no Robolectric or device is needed.
+`android/local.properties` must contain `sdk.dir=/opt/android-sdk` (git-ignored); compileSdk/targetSdk 36.
+Unit tests are plain JVM (JUnit 4, kotlinx-coroutines-test, OkHttp MockWebServer); no Robolectric or device.
+
+## Run against the local backend
+
+1. `cd backend && npm install && npm run dev` (listens on port 8787).
+2. Install the **debug** build on an emulator: `./gradlew :app:installDebug`.
+3. Debug builds default to `http://10.0.2.2:8787` (the emulator's alias for your computer's localhost);
+   cleartext is allowed only to 10.0.2.2 / localhost by `src/debug/res/xml/network_security_config.xml`.
+   On a physical device change the address in Settings → Server (e.g. your computer's LAN IP over https,
+   or `adb reverse tcp:8787 tcp:8787` and `http://localhost:8787`).
+4. Settings → Account: sign in with any contact; in dev the backend logs the one-time code.
+
+Release builds default to `https://api.steady.app` (placeholder, `buildConfigField` in `build.gradle.kts`),
+reject non-https server addresses and permit no cleartext at all.
+
+## Architecture
+
+```
+ MainActivity ── EXTRA_ROUTE deep links ──▶ SteadyNavHost (nav/) ── RouteTable (pure: routes, start, deep links)
+     │                                          │ Navigator
+     ▼                                          ▼
+ SteadyApp ─ builds ─▶ AppContainer (di/)    feature/* screens + ViewModels (pure *Models / *Logic, unit-tested)
+     │                   │
+     │                   ├─ planRepo = GuardedPlanRepository(PlanGuard) ─▶ LocalPlanRepository ─┐
+     │                   ├─ sessionRepo / cardRepo / dayRepo / local unlocks ───────────────────┼─▶ Room steady.db (data/db, v2)
+     │                   ├─ rules  = ZoneAwareRules (RulesEngine for the current device zone)   │
+     │                   ├─ detectorConfig = DetectorConfigStore (asset seed ⇄ GET /v1/detectors, persisted)
+     │                   └─ remote = RemoteModule (remote/) ── ApiClient (OkHttp) ──▶ backend /v1
+     │                           SyncCoordinator · SessionUploader · RemoteUnlockRepository (polls key holder)
+     │                           RemoteEntitlementRepository (Play Billing + /v1/entitlements + /v1/billing/verify)
+     │                           AccountStore (token encrypted with an AndroidKeyStore AES/GCM key) · AuthGuard (401)
+     │
+     └─ plan changes ─▶ BlockScheduler.sync ─▶ AlarmManager (BlockAlarmReceiver) + FocusService (notification)
+                         BootReceiver: boot / update / time / time-zone change → sync again
+
+ SteadyAccessibilityService (enforcement/) ── reads plan, grants, rules, detectorConfig from AppContainer
+     ├─ EnforcementDecider (pure; ProtectedApps never acted on) → BACK / HOME
+     ├─ records the intercept (the only recorder of real opens)
+     └─ InterceptOverlay → InterceptContent (same sheet as the in-app Intercept route)
+          └─ "60-second swap" → launchIntent(ROUTE_SWAP) → MainActivity → Swap
+```
+
+How the features connect:
+
+- **Setup** saves the plan (free tier: `FreeTier.scheduleLimit`); SteadyApp's plan collector re-arms the
+  block alarm. If Accessibility is off, Setup continues to the **Disclosure** (also linked from a Today
+  banner and Settings). While a strict block runs, `PlanGuard` refuses edits that would weaken it.
+- **Today** shows the day strip and next block; "Start now" opens **Focus**; the debug "Try opening
+  Instagram" opens the in-app **Intercept** with `recordOpen = true` (the only in-app path that records).
+- **Focus** runs the block; emergency unlock self-grants or asks the key holder through
+  `RemoteUnlockRepository`, and follows its `outcomes` (approved / denied / no answer). Signed out or no
+  linked key holder → the sheet links to Settings or Key holder.
+- **Recap / Swap / Review** use `core/learning`; **Insights** aggregates sessions, per-day intercepts and
+  `interceptsBySurface`.
+- **Settings** (account, sync, plan, privacy, delete synced data via `DELETE /v1/me`, server address) and
+  **Partner** (invites, key-holder links both ways with Remove, weekly summaries, unlock requests).
 
 ## Layout (`src/main/java/app/steady/`)
 
 | Path | What |
 |------|------|
-| `MainActivity.kt`, `SteadyApp.kt` | Edge-to-edge Compose host; Application builds the `AppContainer` (`context.appContainer`). |
-| `di/AppContainer.kt` | `AppContainer` interface + `DefaultAppContainer`. Phase 11 swaps `syncApi` / `entitlements` here only. |
-| `data/Repositories.kt` | Contract repository interfaces, `Entitlement`/`Tier`, plus `DayRepository` (tasks + energy), `EmptyPlan`, `Plan.isConfigured`. |
-| `data/db/` | Room DB `steady.db` (plan JSON blob via `PlanCodec`, sessions, intercept events, cards, unlock grants/requests, tasks, energy). Schemas exported to `android/app/schemas/`. |
-| `data/local/` | Local repository implementations over the DAOs. |
-| `data/LocalOnlyServices.kt` | `NoopSyncApi`, `FreeEntitlementRepository`, feature flag names. |
-| `nav/Routes.kt` | Type-safe `@Serializable` routes + `Navigator` interface used by every screen. |
-| `nav/SteadyNavHost.kt` | Maps routes to screens. Starts at Setup until a plan is saved, then Today. |
-| `ui/theme/` | Prototype tokens (light/dark), Atkinson Hyperlegible body, Bricolage Grotesque display, JetBrains Mono labels via downloadable Google Fonts (`res/values/font_certs.xml`); falls back to system sans. Extra tokens: `Steady.colors.urge` etc. |
-| `ui/components/` | Prototype primitives: `OptionChip` (.opt), `PrimaryButton` (.cta), `GhostButton`, `SteadyCard`, `Pill`, `SectionLabel`, `StubScreen`. All touch targets ≥ 48dp. |
-| `feature/setup/` | Distractions, schedules (two presets + custom with time pickers), key holder → saves Plan. `PlanBuilder` is pure and unit-tested. |
-| `feature/today/` | Energy check-in, day strip (`RulesEngine.blocksOn`), next-block countdown, tasks with tiny first step, Start now / Try opening Instagram. |
-| `feature/*` (others) | Stubs for phases 6, 7, 8, 11. Replace the body; keep the signature `(container, nav[, route])`. |
-| `enforcement/` | Stubs for Phase 6 (accessibility service, foreground service, overlay). Declared in the manifest already. |
-
-## Contract stubs (temporary)
-
-`src/stubs/kotlin/` holds minimal copies of the `core/rules`, `core/detect` and `core/learning` types
-this module uses, in their real packages, so the app builds before the core modules land.
-`TODO(phase12)`: delete `src/stubs/`, remove the `srcDir("src/stubs/kotlin")` line and restore the
-three `implementation(project(":core:…"))` lines in `build.gradle.kts`.
+| `MainActivity.kt`, `SteadyApp.kt`, `Links.kt` | Activity (deep links), Application (container, block-alarm upkeep), external URLs and build-type API config. |
+| `di/AppContainer.kt` | `AppContainer` + `DefaultAppContainer`, `DeviceClock`, `ZoneAwareRules`. |
+| `data/` | Contract repositories, `PlanGuard`, `DetectorConfigStore`, Room DB (`db/`, schemas in `app/schemas/`, migration 1→2), local repositories. |
+| `nav/` | Type-safe routes, `Navigator`, `RouteTable`, `SteadyNavHost`. |
+| `enforcement/` | Accessibility service, decider, overlay, FocusService, BlockScheduler + receivers, `ProtectedApps`, notification permission. See its README. |
+| `remote/` | Backend client and account features. See its README. |
+| `feature/*` | One package per screen. |
+| `ui/` | Theme tokens and shared components. |
 
 ## Privacy
 
-Everything is stored locally. Intercept events store only surface id + time. No screen content is
-ever stored or sent; Room data is excluded from cloud backup (`res/xml/data_extraction_rules.xml`).
+Everything works signed out and stays on the phone. Intercept events store only surface id + time; no
+screen content is ever stored or sent. Room data, prefs and the token are excluded from backup.

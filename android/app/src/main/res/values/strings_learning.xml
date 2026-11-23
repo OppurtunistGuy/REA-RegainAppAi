@@ -98,4 +98,8 @@
     <string name="insights_trend_up">A bit more than last week.</string>
     <string name="insights_trend_same">About the same as last week.</string>
     <string name="insights_trend_down">A lighter week, and that’s okay. The goal just waits.</string>
+    <string name="review_delete">Delete</string>
+    <string name="review_delete_title">Delete this card?</string>
+    <string name="review_delete_body">“%1$s” and its review history will be removed from this phone.</string>
+    <string name="review_delete_cancel">Keep it</string>
 </resources>

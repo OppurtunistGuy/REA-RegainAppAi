@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Pure entitlement rules. Free is the default; Plus needs an owned Play purchase or the server's word. */
 object EntitlementLogic {
@@ -81,10 +83,45 @@ class RemoteEntitlementRepository(
         EntitlementLogic.needsAck(billing.purchases.value).forEach { billing.acknowledge(it.purchaseToken) }
     }
 
-    /** Acknowledge purchases as they arrive; refetch the server tier when the account changes. */
+    /** Purchase tokens the server has already verified for the signed-in user (this app run). */
+    private val verified = mutableSetOf<String>()
+    private val verifyMutex = Mutex()
+
+    /**
+     * `POST /v1/billing/verify` for an active Plus purchase the server has not seen yet, so the
+     * entitlement follows the account (desktop sync, other devices). Signed out or unverifiable
+     * (offline, 503 `billing_not_configured`) → Play's word alone keeps Plus on this device.
+     * Returns true when the server accepted the purchase.
+     */
+    suspend fun verifyPurchases(): Boolean = verifyMutex.withLock {
+        val userId = account.account.value?.userId ?: return@withLock false
+        val p = EntitlementLogic.activePlus(billing.purchases.value) ?: return@withLock false
+        val key = userId + ":" + p.purchaseToken
+        if (key in verified) return@withLock false
+        val productId = p.productIds.first { it in PlusProducts.ALL }
+        try {
+            server.value = api.verifyPurchase(productId, p.purchaseToken)
+            verified += key
+            true
+        } catch (e: ApiException) {
+            false
+        }
+    }
+
+    /** Acknowledge purchases as they arrive; verify them with the server; refetch the server tier when the account changes. */
     fun start(): Job = scope.launch {
-        launch { billing.purchases.collect { acknowledgePending() } }
-        launch { account.account.map { it?.userId }.distinctUntilChanged().collect { refreshServer() } }
+        launch {
+            billing.purchases.collect {
+                acknowledgePending()
+                verifyPurchases()
+            }
+        }
+        launch {
+            account.account.map { it?.userId }.distinctUntilChanged().collect {
+                refreshServer()
+                verifyPurchases()
+            }
+        }
         launch { billing.refreshPurchases() }
     }
 }

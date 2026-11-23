@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">Steady</string>
     <string name="accessibility_service_label">Steady focus helper</string>
-    <string name="accessibility_service_description">Steady uses Accessibility only during the study blocks you set, to notice when Reels, Shorts, Spotlight or Facebook Reels open and to hide that section so messages and the rest of the app still work. Screen contents never leave your phone and are not stored.</string>
     <string name="fgs_special_use_subtype">Keeps the study schedule you chose running, so short-video sections stay hidden during focus blocks.</string>
 </resources>

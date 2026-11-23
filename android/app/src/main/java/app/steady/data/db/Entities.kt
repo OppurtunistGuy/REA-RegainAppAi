@@ -26,8 +26,11 @@ data class SessionEntity(
     val unlocks: Int,
 )
 
-/** One caught urge. Stores only which surface and when; never screen content. */
-@Entity(tableName = "intercept_events", indices = [Index("atMs")])
+/**
+ * One caught urge. Stores only which surface and when; never screen content.
+ * v2 adds the (atMs, surfaceId) index used by the per-surface counts (see [SteadyDatabase.MIGRATION_1_2]).
+ */
+@Entity(tableName = "intercept_events", indices = [Index("atMs"), Index("atMs", "surfaceId")])
 data class InterceptEventEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val surfaceId: String,

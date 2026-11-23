@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -41,11 +42,22 @@ private class NavControllerNavigator(private val nav: NavHostController) : Navig
     }
 }
 
-/** Start at Setup if no plan has been saved yet, else Today. */
+/** A deep link from the overlay or notification (`EXTRA_ROUTE` + optional `EXTRA_SCHEDULE_ID`). */
+data class DeepLink(val route: String, val scheduleId: String? = null)
+
+/**
+ * Start at Setup if no plan has been saved yet, else Today. A [pendingLink] (from MainActivity's
+ * intent) is applied once the NavHost exists, then reported through [onLinkHandled] so it runs once.
+ */
 @Composable
-fun SteadyNavHost(container: AppContainer, modifier: Modifier = Modifier) {
+fun SteadyNavHost(
+    container: AppContainer,
+    modifier: Modifier = Modifier,
+    pendingLink: DeepLink? = null,
+    onLinkHandled: () -> Unit = {},
+) {
     val start: Route? by produceState<Route?>(initialValue = null, container) {
-        value = if (container.planRepo.plan.first().isConfigured) Today else Setup
+        value = RouteTable.start(container.planRepo.plan.first())
     }
     val startRoute = start
     if (startRoute == null) {
@@ -68,5 +80,14 @@ fun SteadyNavHost(container: AppContainer, modifier: Modifier = Modifier) {
         composable<Paywall> { PaywallScreen(container, navigator) }
         composable<Settings> { SettingsScreen(container, navigator) }
         composable<Disclosure> { DisclosureScreen(container, navigator) }
+    }
+
+    // Runs after the graph is set (NavHost composed above), so navigate() has a graph to use.
+    LaunchedEffect(pendingLink) {
+        val link = pendingLink ?: return@LaunchedEffect
+        val configured = container.planRepo.plan.first().isConfigured
+        val route = RouteTable.deepLink(link.route, link.scheduleId, configured)
+        if (route != null && route != startRoute) navigator.go(route)
+        onLinkHandled()
     }
 }

@@ -11,8 +11,8 @@ import app.steady.nav.Today
 
 /**
  * Deep-link contract between enforcement (overlay, notification) and [MainActivity].
- * TODO(phase12): MainActivity reads [EXTRA_ROUTE] (onCreate + onNewIntent) via [launchRouteFor] and
- * navigates there.
+ * MainActivity reads [EXTRA_ROUTE] / [EXTRA_SCHEDULE_ID] in onCreate and onNewIntent and hands them
+ * to SteadyNavHost, which maps them with [launchRouteFor] (via `RouteTable.deepLink`) and navigates.
  */
 const val EXTRA_ROUTE = "steady.route"
 

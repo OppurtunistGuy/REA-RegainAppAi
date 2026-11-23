@@ -37,11 +37,15 @@ class SettingsViewModelTest {
     private lateinit var scope: CoroutineScope
     private val account = InMemoryAccountStore()
     private val verifyBodies = mutableListOf<String>()
+    private val calls = mutableListOf<String>()
+    @Volatile private var deleteStatus = 204
 
     @Before fun setUp() {
         server = MockWebServer().apply {
             dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse = when (request.path) {
+                override fun dispatch(request: RecordedRequest): MockResponse = when (request.path.also { calls += "${request.method} $it" }) {
+                    "/v1/me" -> if (deleteStatus == 204) MockResponse().setResponseCode(204) else error(deleteStatus, "server_error")
+                    "/v1/auth/logout" -> MockResponse().setResponseCode(204)
                     "/v1/auth/otp/start" -> MockResponse().setResponseCode(204)
                     "/v1/auth/otp/verify" -> {
                         val body = request.body.readUtf8()
@@ -90,14 +94,36 @@ class SettingsViewModelTest {
         assertEquals(acc, vm.state.value.account)
     }
 
-    @Test fun deleteSyncedDataSignsOutLocally() = runTest {
+    @Test fun deleteSyncedDataCallsDeleteMeThenSignsOut() = runTest {
+        account.signIn(app.steady.remote.TEST_ACCOUNT)
+        val vm = vm()
+        vm.askDelete(true)
+        assertEquals(true, vm.state.value.confirmDelete)
+        vm.deleteSyncedData()
+        assertEquals(true, "DELETE /v1/me" in calls)
+        assertNull(account.account.value)
+        assertEquals(R.string.settings_delete_done, vm.state.value.notice)
+        assertEquals(false, vm.state.value.confirmDelete)
+    }
+
+    @Test fun deleteSyncedDataFailureKeepsAccount() = runTest {
+        deleteStatus = 500
         account.signIn(app.steady.remote.TEST_ACCOUNT)
         val vm = vm()
         vm.askDelete(true)
         vm.deleteSyncedData()
-        assertNull(account.account.value)
-        assertEquals(R.string.settings_delete_done, vm.state.value.notice)
+        assertEquals(app.steady.remote.TEST_ACCOUNT, account.account.value)
+        assertEquals(R.string.acct_err_server, vm.state.value.error)
         assertEquals(false, vm.state.value.confirmDelete)
+    }
+
+    @Test fun signOutRevokesTokenOnServer() = runTest {
+        account.signIn(app.steady.remote.TEST_ACCOUNT)
+        val vm = vm()
+        vm.signOut()
+        assertNull(account.account.value)
+        testScheduler.advanceUntilIdle()
+        assertEquals(true, "POST /v1/auth/logout" in calls)
     }
 
     @Test fun baseUrlValidated() = runTest {

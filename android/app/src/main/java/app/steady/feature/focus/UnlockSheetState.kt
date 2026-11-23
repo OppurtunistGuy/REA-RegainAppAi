@@ -10,10 +10,19 @@ sealed interface UnlockPhase {
     /** Wait + reason form. */
     data object Form : UnlockPhase
     data object Sending : UnlockPhase
-    /** Asked the key holder; Phase 11 polls the request and adds the grant on approval. */
+    /** Asked the key holder; `RemoteUnlockRepository` polls the request and adds the grant on approval. */
     data class Pending(val requestId: String) : UnlockPhase
-    data class Granted(val until: Instant) : UnlockPhase
+    /** [approvedMinutes] is set when the key holder approved ("Unlocked for 15 min"). */
+    data class Granted(val until: Instant, val approvedMinutes: Int? = null) : UnlockPhase
+    /** The key holder said no. */
+    data object Denied : UnlockPhase
+    /** No decision within the polling window, or the request went away. */
+    data object NoAnswer : UnlockPhase
     data object Failed : UnlockPhase
+    /** Asking the key holder needs an account (`NotSignedIn`): offer Settings. */
+    data object NeedsSignIn : UnlockPhase
+    /** Nobody accepted an invite yet (`NoKeyHolderLinked`): offer the Key holder screen. */
+    data object NeedsKeyHolder : UnlockPhase
 }
 
 data class UnlockSheetState(
@@ -37,6 +46,12 @@ sealed interface UnlockAction {
     data class Requested(val requestId: String) : UnlockAction
     data class Granted(val until: Instant) : UnlockAction
     data object Failed : UnlockAction
+    data object FailedSignedOut : UnlockAction
+    data object FailedNoKeyHolder : UnlockAction
+    /** Outcomes of a pending key-holder request (from `RemoteUnlockRepository.outcomes`). */
+    data class KeyHolderApproved(val requestId: String, val until: Instant, val minutes: Int) : UnlockAction
+    data class KeyHolderDenied(val requestId: String) : UnlockAction
+    data class KeyHolderNoAnswer(val requestId: String) : UnlockAction
     data object Dismiss : UnlockAction
 }
 
@@ -75,6 +90,16 @@ class UnlockSheetReducer(
             if ((s.phase == UnlockPhase.Form || s.phase == UnlockPhase.Failed) && view(s, a.now).canSubmit) {
                 s.copy(phase = UnlockPhase.Sending)
             } else s
+        UnlockAction.FailedSignedOut -> if (s.phase == UnlockPhase.Sending) s.copy(phase = UnlockPhase.NeedsSignIn) else s
+        UnlockAction.FailedNoKeyHolder -> if (s.phase == UnlockPhase.Sending) s.copy(phase = UnlockPhase.NeedsKeyHolder) else s
+        // A decision opens the sheet with the news even if the user closed it while waiting.
+        is UnlockAction.KeyHolderApproved -> if (s.pendingRequestId == a.requestId) {
+            s.copy(phase = UnlockPhase.Granted(a.until, a.minutes), pendingRequestId = null, reason = "")
+        } else s
+        is UnlockAction.KeyHolderDenied ->
+            if (s.pendingRequestId == a.requestId) s.copy(phase = UnlockPhase.Denied, pendingRequestId = null, reason = "") else s
+        is UnlockAction.KeyHolderNoAnswer ->
+            if (s.pendingRequestId == a.requestId) s.copy(phase = UnlockPhase.NoAnswer, pendingRequestId = null) else s
         is UnlockAction.Requested ->
             if (s.phase == UnlockPhase.Sending) s.copy(phase = UnlockPhase.Pending(a.requestId), pendingRequestId = a.requestId) else s
         is UnlockAction.Granted ->

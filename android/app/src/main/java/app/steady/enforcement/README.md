@@ -15,18 +15,10 @@ Hides Reels / Shorts / Spotlight / Facebook Reels (and whole blocked apps) durin
 
 Tests: `cd android && ./gradlew :app:testDebugUnitTest --tests 'app.steady.enforcement.*'`
 
-## Manifest additions needed (Phase 12)
+| `ProtectedApps` | Packages never blocked or acted on (Settings, installers, Play Store, dialer/phone, emergency, Steady). |
+| `NotificationPermission` | Asks for POST_NOTIFICATIONS once (Android 13+) from Today, before the first block. |
 
-```xml
-<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
-<receiver android:name=".enforcement.BlockAlarmReceiver" android:exported="false" />
-<receiver android:name=".enforcement.BootReceiver" android:exported="false">
-    <intent-filter>
-        <action android:name="android.intent.action.BOOT_COMPLETED" />
-        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-        <action android:name="android.intent.action.TIME_SET" />
-        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
-    </intent-filter>
-</receiver>
-```
+The manifest declares `RECEIVE_BOOT_COMPLETED`, `BlockAlarmReceiver` and `BootReceiver` (boot, package
+replaced, time set, time-zone change). `SteadyApp` calls `BlockScheduler.sync` on start and on every plan
+change. The overlay state uses `InterceptStateBuilder.forOverlay` (today vs. the mean of the previous 7 days);
+the service is the single place real opens are recorded.

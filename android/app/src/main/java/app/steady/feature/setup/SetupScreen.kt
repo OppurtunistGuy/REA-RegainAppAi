@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.steady.di.AppContainer
+import app.steady.enforcement.rememberAccessibilityEnabled
+import app.steady.nav.Disclosure
 import app.steady.nav.Navigator
 import app.steady.nav.Today
 import app.steady.rules.Relation
@@ -50,16 +52,22 @@ import app.steady.ui.components.SteadyScreen
 import app.steady.ui.components.SubText
 import app.steady.ui.theme.Steady
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @Composable
 fun SetupScreen(container: AppContainer, nav: Navigator) {
     val vm: SetupViewModel = viewModel { SetupViewModel(container.planRepo, container.entitlements) }
     val state by vm.state.collectAsStateWithLifecycle()
+    val accessibilityOn by rememberAccessibilityEnabled()
 
+    // The saved plan reaches BlockScheduler through SteadyApp's plan collector (alarm + FocusService).
     LaunchedEffect(state.saved) {
         if (state.saved) {
             vm.consumeSaved()
             nav.resetTo(Today)
+            // Without the accessibility service nothing gets hidden: explain it right away.
+            if (!accessibilityOn) nav.go(Disclosure)
         }
     }
 
@@ -72,6 +80,9 @@ fun SetupScreen(container: AppContainer, nav: Navigator) {
         onRelation = vm::setRelation,
         onName = vm::setKeyHolderName,
         onSave = vm::save,
+        lockedUntilLabel = state.lockedUntil?.let {
+            DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withZone(container.zone).format(it)
+        },
     )
 
     state.editor?.let { draft ->
@@ -99,6 +110,7 @@ fun SetupContent(
     onRelation: (Relation) -> Unit,
     onName: (String) -> Unit,
     onSave: () -> Unit,
+    lockedUntilLabel: String? = null,
 ) {
     SteadyScreen {
         SectionLabel(if (state.isEdit) "Edit plan" else "Setup · 90 seconds")
@@ -148,13 +160,19 @@ fun SetupContent(
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
                 modifier = Modifier.fillMaxWidth(),
             )
-            SubText("They'll get a note when you ask for an emergency unlock. You can invite them later.")
+            SubText("They'll see your emergency unlock requests in Steady once they accept your invite. You can invite them later.")
         } else {
             SubText("Emergency unlock asks for a 30-second wait and a typed reason.")
         }
 
         SubText("Reels and Shorts are hidden inside the app. Messages and Stories still work.")
         PrimaryButton(if (state.isEdit) "Save my plan" else "Start my plan", onSave, enabled = state.canSave)
+        if (lockedUntilLabel != null) {
+            SubText(
+                "A strict block is running, so this change would make it easier to break. " +
+                    "You can loosen your plan after it ends at $lockedUntilLabel. Adding things works any time.",
+            )
+        }
         if (!state.loading && !state.canSave && !state.saving) {
             SubText(
                 when {

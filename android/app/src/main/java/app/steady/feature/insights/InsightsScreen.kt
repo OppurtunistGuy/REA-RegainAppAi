@@ -59,9 +59,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * Last four weeks, aggregate counts only. Per-surface counts need a repository method that does not
- * exist yet (`SessionRepository` only exposes a daily total), so [surfaceCounts] defaults to empty and
- * the screen says so; Phase 12 wires it.
+ * Last four weeks, aggregate counts only. [surfaceCounts] comes from
+ * `SessionRepository.interceptsBySurface` over the same days (see [InsightsScreen]).
  */
 class InsightsViewModel(
     sessionRepo: SessionRepository,
@@ -85,7 +84,11 @@ class InsightsViewModel(
 @Composable
 fun InsightsScreen(container: AppContainer, nav: Navigator) {
     val vm: InsightsViewModel = viewModel {
-        InsightsViewModel(container.sessionRepo, container.cardRepo, container.clock, container.zone)
+        val days = InsightsLogic.days(container.clock.instant().atZone(container.zone).toLocalDate())
+        InsightsViewModel(
+            container.sessionRepo, container.cardRepo, container.clock, container.zone,
+            surfaceCounts = container.sessionRepo.interceptsBySurface(days.first(), days.last().plusDays(1)),
+        )
     }
     val state by vm.state.collectAsStateWithLifecycle()
     InsightsContent(state, onReview = { nav.go(Review) }, onBack = nav::back)

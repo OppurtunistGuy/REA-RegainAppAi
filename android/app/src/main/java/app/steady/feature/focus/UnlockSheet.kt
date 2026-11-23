@@ -44,6 +44,8 @@ fun UnlockSheetContent(
     onSurface: (String?) -> Unit,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit = {},
+    onOpenPartner: () -> Unit = {},
 ) {
     val c = Steady.colors
     val sheet = state.unlock
@@ -58,14 +60,37 @@ fun UnlockSheetContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         ScreenTitle(stringResource(R.string.unlock_title))
+        val who = state.keyHolderName ?: stringResource(R.string.unlock_your_key_holder)
         when (val phase = sheet.phase) {
             is UnlockPhase.Pending -> {
-                Message(stringResource(R.string.unlock_pending, state.keyHolderName ?: "", state.approvalMinutes))
+                Message(stringResource(R.string.unlock_pending, who, state.approvalMinutes))
                 PrimaryButton(stringResource(R.string.unlock_back), onDismiss)
             }
             is UnlockPhase.Granted -> {
-                Message(stringResource(R.string.unlock_granted, state.grantedUntilLabel ?: ""))
+                val minutes = phase.approvedMinutes
+                Message(
+                    if (minutes != null) stringResource(R.string.unlock_granted_keyholder, who, minutes, state.grantedUntilLabel ?: "")
+                    else stringResource(R.string.unlock_granted, state.grantedUntilLabel ?: ""),
+                )
                 PrimaryButton(stringResource(R.string.unlock_back), onDismiss)
+            }
+            UnlockPhase.Denied -> {
+                Message(stringResource(R.string.unlock_denied, who))
+                PrimaryButton(stringResource(R.string.unlock_back), onDismiss)
+            }
+            UnlockPhase.NoAnswer -> {
+                Message(stringResource(R.string.unlock_no_answer, who))
+                PrimaryButton(stringResource(R.string.unlock_back), onDismiss)
+            }
+            UnlockPhase.NeedsSignIn -> {
+                Message(stringResource(R.string.unlock_needs_sign_in, who))
+                PrimaryButton(stringResource(R.string.unlock_open_settings), onOpenSettings)
+                GhostButton(stringResource(R.string.unlock_back), onDismiss)
+            }
+            UnlockPhase.NeedsKeyHolder -> {
+                Message(stringResource(R.string.unlock_needs_key_holder, who))
+                PrimaryButton(stringResource(R.string.unlock_open_partner), onOpenPartner)
+                GhostButton(stringResource(R.string.unlock_back), onDismiss)
             }
             UnlockPhase.Closed, UnlockPhase.Form, UnlockPhase.Sending, UnlockPhase.Failed -> {
                 SubText(stringResource(R.string.unlock_intro))

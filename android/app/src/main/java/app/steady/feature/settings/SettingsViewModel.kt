@@ -10,6 +10,7 @@ import app.steady.remote.ApiClient
 import app.steady.remote.EntitlementLogic
 import app.steady.remote.OwnedPurchase
 import app.steady.remote.RemoteModule
+import app.steady.remote.SignedOutReason
 import app.steady.remote.SyncStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,8 @@ data class SettingsUiState(
     val entitlement: Entitlement = EntitlementLogic.FREE,
     val activePurchase: OwnedPurchase? = null,
     val confirmDelete: Boolean = false,
+    /** Set when a 401 signed the account out (expired / revoked token). */
+    val signedOutReason: SignedOutReason? = null,
 ) {
     val canSendCode: Boolean get() = !busy && contact.trim().length >= 3
     val canVerify: Boolean get() = !busy && code.trim().length == 6 && code.trim().all { it.isDigit() }
@@ -52,6 +55,7 @@ class SettingsViewModel(private val remote: RemoteModule) : ViewModel() {
         viewModelScope.launch { remote.entitlements.entitlement.collect { e -> _state.update { it.copy(entitlement = e) } } }
         viewModelScope.launch { remote.entitlements.activePurchase.collect { p -> _state.update { it.copy(activePurchase = p) } } }
         viewModelScope.launch { remote.account.baseUrl.collect { u -> _state.update { it.copy(savedBaseUrl = u) } } }
+        viewModelScope.launch { remote.authGuard.reason.collect { r -> _state.update { it.copy(signedOutReason = r) } } }
     }
 
     fun setContact(v: String) = _state.update { it.copy(contact = v, error = null) }
@@ -91,16 +95,22 @@ class SettingsViewModel(private val remote: RemoteModule) : ViewModel() {
         viewModelScope.launch { remote.sync.syncOnce() }
     }
 
-    fun askDelete(show: Boolean) = _state.update { it.copy(confirmDelete = show) }
-
-    /**
-     * There is no `DELETE /v1/me` yet, so this is a local sign-out that forgets the token.
-     * TODO(backend): call DELETE /v1/me (plan, sessions, unlock requests, key holder links) first.
-     */
-    fun deleteSyncedData() {
-        remote.signOut()
-        _state.update { it.copy(confirmDelete = false, step = OtpStep.CONTACT, notice = R.string.settings_delete_done) }
+    fun askDelete(show: Boolean) {
+        if (!_state.value.busy) _state.update { it.copy(confirmDelete = show) }
     }
+
+    /** Confirmed in the dialog: `DELETE /v1/me`, then local sign-out. On failure the dialog closes with the error. */
+    fun deleteSyncedData() = action {
+        try {
+            remote.deleteSyncedData()
+            _state.update { it.copy(step = OtpStep.CONTACT, notice = R.string.settings_delete_done) }
+        } finally {
+            _state.update { it.copy(confirmDelete = false) }
+        }
+    }
+
+    /** Hides the "you were signed out" note. */
+    fun dismissSignedOut() = remote.authGuard.clear()
 
     private fun action(block: suspend () -> Unit) {
         if (_state.value.busy) return

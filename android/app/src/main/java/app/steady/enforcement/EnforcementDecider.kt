@@ -47,7 +47,7 @@ fun observedPackages(config: DetectorConfig, plan: Plan): Set<String> {
     plan.distractions.map { it.id }
         .filter { it.startsWith(APP_PREFIX) }
         .map { it.removePrefix(APP_PREFIX) }
-        .filterTo(out) { it.isNotBlank() }
+        .filterTo(out) { it.isNotBlank() && !ProtectedApps.isProtected(it) }
     return out
 }
 
@@ -74,7 +74,8 @@ class EnforcementDecider(
      * When false the service does not look at the screen at all.
      */
     fun anyBlocked(packageName: String, sections: List<String>, plan: Plan, grants: List<UnlockGrant>, now: Instant): Boolean =
-        (listOf(appSurfaceId(packageName)) + sections).any { rules.isBlocked(plan, grants, it, now) }
+        !ProtectedApps.isProtected(packageName) &&
+            (listOf(appSurfaceId(packageName)) + sections).any { rules.isBlocked(plan, grants, it, now) }
 
     /**
      * @param detection SurfaceDetector result for the current tree, or null if the tree was not read.
@@ -91,6 +92,8 @@ class EnforcementDecider(
         now: Instant,
         healthy: Boolean,
     ): EnforcementDecision {
+        // Settings, installers, the dialer, emergency apps and Steady itself are never acted on.
+        if (ProtectedApps.isProtected(packageName)) return EnforcementDecision.None
         val active = rules.state(plan, now) as? BlockState.Active ?: return EnforcementDecision.None
         val candidate = candidate(packageName, detection, sections, plan, grants, now, healthy)
             ?: return EnforcementDecision.None

@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -40,6 +41,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.steady.data.StudyTask
 import app.steady.di.AppContainer
+import app.steady.R
+import app.steady.enforcement.AskNotificationPermissionOnce
+import app.steady.enforcement.rememberAccessibilityEnabled
+import app.steady.nav.Disclosure
 import app.steady.nav.Focus
 import app.steady.nav.Insights
 import app.steady.nav.Intercept
@@ -67,15 +72,21 @@ fun TodayScreen(container: AppContainer, nav: Navigator) {
         TodayViewModel(container.planRepo, container.dayRepo, container.rules, container.zone, tickerFlow(container.clock))
     }
     val state by vm.state.collectAsStateWithLifecycle()
+    val accessibilityOn by rememberAccessibilityEnabled()
+    // Before the first block runs FocusService (Android 13+ notification permission, asked once).
+    AskNotificationPermissionOnce(enabled = state.autoStartOn)
     TodayContent(
         state = state,
+        protectionOff = !accessibilityOn,
+        onTurnOnProtection = { nav.go(Disclosure) },
         onEnergy = vm::setEnergy,
         onDraftTitle = vm::setDraftTitle,
         onDraftStep = vm::setDraftStep,
         onAddTask = vm::addTask,
         onToggleTask = vm::toggleTask,
         onStartNow = { nav.go(Focus(scheduleId = state.next?.takeIf { it.isActive }?.scheduleId)) },
-        onTryIntercept = { nav.go(Intercept(surfaceId = "instagram.reels")) },
+        // Debug entry: no real app was opened, so this screen records the open itself.
+        onTryIntercept = { nav.go(Intercept(surfaceId = "instagram.reels", recordOpen = true)) },
         onReview = { nav.go(Review) },
         onInsights = { nav.go(Insights) },
         onSettings = { nav.go(Settings) },
@@ -86,6 +97,8 @@ fun TodayScreen(container: AppContainer, nav: Navigator) {
 @Composable
 fun TodayContent(
     state: TodayUiState,
+    protectionOff: Boolean = false,
+    onTurnOnProtection: () -> Unit = {},
     onEnergy: (Energy) -> Unit,
     onDraftTitle: (String) -> Unit,
     onDraftStep: (String) -> Unit,
@@ -101,6 +114,14 @@ fun TodayContent(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             SectionLabel(state.dateLabel)
             Pill(if (state.autoStartOn) "Auto-start on" else "No schedules", tone = if (state.autoStartOn) PillTone.CALM else PillTone.URGE)
+        }
+
+        if (protectionOff) {
+            SteadyCard {
+                Text(stringResource(R.string.today_protection_off_title), style = MaterialTheme.typography.titleSmall, color = Steady.colors.urge)
+                SubText(stringResource(R.string.today_protection_off_body))
+                GhostButton(stringResource(R.string.today_protection_off_action), onTurnOnProtection)
+            }
         }
 
         ScreenTitle("How’s your energy?")

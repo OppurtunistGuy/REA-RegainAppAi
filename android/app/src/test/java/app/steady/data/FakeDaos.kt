@@ -9,6 +9,7 @@ import app.steady.data.db.PlanDao
 import app.steady.data.db.PlanEntity
 import app.steady.data.db.SessionDao
 import app.steady.data.db.SessionEntity
+import app.steady.data.db.SurfaceCount
 import app.steady.data.db.TaskEntity
 import app.steady.data.db.UnlockDao
 import app.steady.data.db.UnlockGrantEntity
@@ -34,12 +35,22 @@ class FakeSessionDao : SessionDao {
         intercepts.update { it + event.copy(id = it.size + 1L) }
     override fun countIntercepts(fromMs: Long, untilMs: Long) =
         intercepts.map { list -> list.count { it.atMs in fromMs until untilMs } }
+    override fun countInterceptsBySurface(fromMs: Long, untilMs: Long) =
+        intercepts.map { list ->
+            list.filter { it.atMs in fromMs until untilMs }.groupingBy { it.surfaceId }.eachCount()
+                .map { (id, n) -> SurfaceCount(id, n) }
+        }
 }
 
 class FakeCardDao : CardDao {
     val cards = MutableStateFlow<Map<String, CardEntity>>(emptyMap())
     override fun observeAll() = cards.map { m -> m.values.sortedByDescending { it.createdAtMs } }
     override suspend fun upsert(cards: List<CardEntity>) = this.cards.update { m -> m + cards.associateBy { it.id } }
+    val deleteCalls = mutableListOf<List<String>>()
+    override suspend fun delete(ids: List<String>) {
+        deleteCalls += ids
+        cards.update { m -> m - ids.toSet() }
+    }
 }
 
 class FakeUnlockDao : UnlockDao {

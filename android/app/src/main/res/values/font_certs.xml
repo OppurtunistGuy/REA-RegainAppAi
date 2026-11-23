@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Google Play services font provider certificates (standard values shipped by Android Studio).
-     Used by ui/theme/Type.kt GoogleFont.Provider. -->
+     Used by ui/theme/Type.kt GoogleFont.Provider. Phase 12: verified identical to
+     android/user-interface-samples DownloadableFonts/app/src/main/res/values/font_certs.xml. -->
 <resources>
     <array name="com_google_android_gms_fonts_certs">
         <item>@array/com_google_android_gms_fonts_certs_dev</item>

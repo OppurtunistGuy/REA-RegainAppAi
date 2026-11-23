@@ -1,5 +1,6 @@
 package app.steady.remote
 
+import app.steady.data.PlanLockedException
 import app.steady.data.PlanRepository
 import app.steady.data.SyncApi
 import app.steady.data.isConfigured
@@ -106,6 +107,9 @@ class SyncCoordinator(
             SyncStatus.Failed(e.message ?: "sync failed")
         } catch (e: ConflictLoop) {
             SyncStatus.Failed("conflict")
+        } catch (e: PlanLockedException) {
+            // A strict block is running and the server plan is weaker: applied on a later sync.
+            SyncStatus.Failed("plan_locked")
         }
         _status.value = result
         result

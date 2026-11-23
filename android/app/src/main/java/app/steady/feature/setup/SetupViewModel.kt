@@ -4,9 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.steady.data.EmptyPlan
 import app.steady.data.EntitlementRepository
-import app.steady.data.Features
+import app.steady.data.PlanLockedException
 import app.steady.data.PlanRepository
 import app.steady.data.isConfigured
+import app.steady.feature.paywall.FreeTier
 import app.steady.rules.Plan
 import app.steady.rules.Relation
 import app.steady.rules.Schedule
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.util.UUID
 
 data class SetupUiState(
@@ -31,10 +33,12 @@ data class SetupUiState(
     val relation: Relation = Relation.SELF,
     val keyHolderName: String = "",
     val editor: ScheduleDraft? = null,
-    val scheduleLimit: Int? = Features.FREE_SCHEDULE_LIMIT,
+    val scheduleLimit: Int? = FreeTier.SCHEDULE_LIMIT,
     val limitHit: Boolean = false,
     val saving: Boolean = false,
     val saved: Boolean = false,
+    /** Set when the save was refused because a strict block is running (PlanGuard). */
+    val lockedUntil: Instant? = null,
 ) {
     val needsName: Boolean get() = relation != Relation.SELF
     val canSave: Boolean
@@ -56,8 +60,8 @@ class SetupViewModel(
 
     /** null = unlimited. */
     private val limit: StateFlow<Int?> = entitlements.entitlement
-        .map { if (Features.UNLIMITED_SCHEDULES in it.features) null else Features.FREE_SCHEDULE_LIMIT }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Features.FREE_SCHEDULE_LIMIT)
+        .map(FreeTier::scheduleLimit)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, FreeTier.SCHEDULE_LIMIT)
 
     init {
         viewModelScope.launch {
@@ -135,10 +139,15 @@ class SetupViewModel(
     fun save() {
         val s = _state.value
         if (!s.canSave) return
-        _state.update { it.copy(saving = true) }
+        _state.update { it.copy(saving = true, lockedUntil = null) }
         viewModelScope.launch {
             val plan = PlanBuilder.build(selection(s), previous, newId)
-            planRepo.save(plan)
+            try {
+                planRepo.save(plan)
+            } catch (e: PlanLockedException) {
+                _state.update { it.copy(saving = false, lockedUntil = e.until) }
+                return@launch
+            }
             previous = plan
             _state.update { it.copy(saving = false, saved = true) }
         }

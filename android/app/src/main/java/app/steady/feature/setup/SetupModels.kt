@@ -1,5 +1,6 @@
 package app.steady.feature.setup
 
+import app.steady.enforcement.ProtectedApps
 import app.steady.rules.KeyHolder
 import app.steady.rules.Plan
 import app.steady.rules.Relation
@@ -72,8 +73,11 @@ object PlanBuilder {
         val surfaces = SetupDefaults.distractions
             .filter { it.surfaceId in selection.distractionIds }
             .map { Surface(it.surfaceId, it.mode) } +
-            // Keep surfaces from an existing plan that Setup does not list (e.g. "site:" added elsewhere).
-            previous.distractions.filter { s -> SetupDefaults.distractions.none { it.surfaceId == s.id } }
+            // Keep surfaces from an existing plan that Setup does not list (e.g. "site:" added elsewhere),
+            // except `app:` blocks of protected apps (Settings, dialer, Play Store, Steady...).
+            previous.distractions.filter { s ->
+                SetupDefaults.distractions.none { it.surfaceId == s.id } && !ProtectedApps.isProtectedSurface(s.id)
+            }
 
         val keyHolder = when (selection.relation) {
             Relation.SELF -> null

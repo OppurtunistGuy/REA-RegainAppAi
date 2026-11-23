@@ -22,6 +22,11 @@ class FakeSessionRepo(private val zone: ZoneId) : SessionRepository {
     override suspend fun recordIntercept(surfaceId: String, at: Instant) = intercepts.update { it + (surfaceId to at) }
     override fun interceptsOn(date: LocalDate): Flow<Int> =
         intercepts.map { list -> list.count { it.second.atZone(zone).toLocalDate() == date } }
+    override fun interceptsBySurface(from: LocalDate, toExclusive: LocalDate): Flow<Map<String, Int>> =
+        intercepts.map { list ->
+            list.filter { val d = it.second.atZone(zone).toLocalDate(); !d.isBefore(from) && d.isBefore(toExclusive) }
+                .groupingBy { it.first }.eachCount()
+        }
 }
 
 class FakeUnlockRepo(private val fail: Boolean = false) : UnlockRepository {

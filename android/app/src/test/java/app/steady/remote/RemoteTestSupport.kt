@@ -75,6 +75,7 @@ class MemSessionRepo(initial: List<FocusSession> = emptyList()) : SessionReposit
     override suspend fun add(s: FocusSession) = state.update { it + s }
     override suspend fun recordIntercept(surfaceId: String, at: Instant) = Unit
     override fun interceptsOn(date: LocalDate): Flow<Int> = flowOf(0)
+    override fun interceptsBySurface(from: LocalDate, toExclusive: LocalDate): Flow<Map<String, Int>> = flowOf(emptyMap())
 }
 
 class FakeBillingGateway(initial: List<OwnedPurchase> = emptyList()) : BillingGateway {

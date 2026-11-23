@@ -27,6 +27,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import app.steady.nav.Partner
+import app.steady.nav.Settings
+import app.steady.remote.remote
+import kotlinx.coroutines.flow.emptyFlow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -80,6 +84,7 @@ fun FocusScreen(container: AppContainer, nav: Navigator, route: Focus) {
             zone = container.zone,
             clock = container.clock,
             routeScheduleId = route.scheduleId,
+            unlockOutcomes = container.remote?.unlocks?.outcomes ?: emptyFlow(),
         )
     }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -109,6 +114,14 @@ fun FocusScreen(container: AppContainer, nav: Navigator, route: Focus) {
             onSurface = vm::chooseSurface,
             onSubmit = vm::submitUnlock,
             onDismiss = vm::dismissUnlock,
+            onOpenSettings = {
+                vm.dismissUnlock()
+                nav.go(Settings)
+            },
+            onOpenPartner = {
+                vm.dismissUnlock()
+                nav.go(Partner)
+            },
         )
     }
 }
@@ -260,6 +273,8 @@ private fun UnlockBottomSheet(
     onSurface: (String?) -> Unit,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenPartner: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
@@ -267,7 +282,7 @@ private fun UnlockBottomSheet(
         sheetState = sheetState,
         containerColor = Steady.colors.screen,
     ) {
-        UnlockSheetContent(state, onReason, onSurface, onSubmit, onDismiss)
+        UnlockSheetContent(state, onReason, onSurface, onSubmit, onDismiss, onOpenSettings, onOpenPartner)
     }
 }
 

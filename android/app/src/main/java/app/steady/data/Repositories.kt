@@ -23,11 +23,15 @@ interface SessionRepository {
     suspend fun add(s: FocusSession)
     suspend fun recordIntercept(surfaceId: String, at: Instant)
     fun interceptsOn(date: LocalDate): Flow<Int>
+    /** Phase 12: intercepts per surface id for local days [from, toExclusive). Surfaces with none are absent. */
+    fun interceptsBySurface(from: LocalDate, toExclusive: LocalDate): Flow<Map<String, Int>>
 }
 
 interface CardRepository {
     val cards: Flow<List<Card>>
     suspend fun upsert(cards: List<Card>)
+    /** Phase 12: removes the cards with these ids (unknown ids are ignored). */
+    suspend fun delete(ids: Collection<String>)
 }
 
 interface UnlockRepository {

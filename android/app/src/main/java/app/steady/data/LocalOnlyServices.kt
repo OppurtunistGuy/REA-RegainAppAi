@@ -17,9 +17,7 @@ object Features {
     const val DESKTOP_SYNC = "desktop_sync"
     const val NOTES_TO_CARDS = "notes_to_cards"
     const val TASK_BREAKDOWN = "task_breakdown"
-
-    /** Free-tier limit on schedules (CONTRACTS: free = 2 schedules). */
-    const val FREE_SCHEDULE_LIMIT = 2
+    // Free-tier limits live in feature/paywall/FreeTier.
 }
 
 /** Everyone gets the free tier until Phase 11 wires billing. */
