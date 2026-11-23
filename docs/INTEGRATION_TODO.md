@@ -35,3 +35,12 @@
 - Add `CardRepository.delete(ids)` + CardDao DELETE; add Delete to CardRow in ReviewScreen.
 - Add `SessionRepository.interceptsBySurface(from, toExclusive): Flow<Map<String, Int>>` (GROUP BY surfaceId)
   and pass it to InsightsViewModel's `surfaceCounts`.
+
+## From Phase 11 (sync, key holder, billing)
+- Manifest `<application android:networkSecurityConfig="@xml/network_security_config">`.
+- Setup should use `FreeTier.scheduleLimit` instead of `Features.FREE_SCHEDULE_LIMIT`.
+- Apply remote detector configs: `container.detectorConfig` is a fixed asset; use SyncApi.detectors() when newer.
+- Focus unlock UI should observe `RemoteUnlockRepository.outcomes` and handle NotSignedIn / NoKeyHolderLinked.
+- Token stored in plain private SharedPreferences; wrap with Keystore.
+- Backend endpoints missing: DELETE /v1/me, GET/DELETE keyholder links, key-holder-readable weekly summary,
+  POST /v1/billing/verify (or RTDN), POST /v1/auth/logout.
