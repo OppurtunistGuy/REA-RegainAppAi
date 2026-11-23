@@ -22,8 +22,6 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/sharedAssets"))
-    // TODO(phase12): remove stubs source set once core modules merged
-    sourceSets["main"].java.srcDir("src/stubs/kotlin")
     testOptions { unitTests.isIncludeAndroidResources = true }
 }
 ksp {
@@ -37,10 +35,9 @@ val copySharedAssets by tasks.registering(Copy::class) {
 }
 tasks.named("preBuild") { dependsOn(copySharedAssets) }
 dependencies {
-    // TODO(phase12): remove stubs source set once core modules merged — then restore these three lines.
-    // implementation(project(":core:rules"))
-    // implementation(project(":core:detect"))
-    // implementation(project(":core:learning"))
+    implementation(project(":core:rules"))
+    implementation(project(":core:detect"))
+    implementation(project(":core:learning"))
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
