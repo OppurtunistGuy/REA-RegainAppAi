@@ -116,3 +116,12 @@ export const FocusSessionSchema = z
   });
 
 export type FocusSession = z.infer<typeof FocusSessionSchema>;
+
+// ---- Billing ----
+
+export const BillingVerifySchema = z
+  .object({
+    productId: z.enum(["steady_plus_monthly", "steady_plus_yearly"]),
+    purchaseToken: z.string().min(1).max(4096),
+  })
+  .strict();

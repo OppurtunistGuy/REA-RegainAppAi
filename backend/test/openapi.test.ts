@@ -22,10 +22,18 @@ const CONTRACT = [
   "POST /v1/sessions",
   "GET /v1/summary/weekly",
   "GET /v1/entitlements",
+  // Phase 12 additions
+  "POST /v1/auth/logout",
+  "DELETE /v1/me",
+  "GET /v1/keyholder/links",
+  "GET /v1/keyholder/owners",
+  "DELETE /v1/keyholder/links/{linkId}",
+  "GET /v1/keyholder/summary",
+  "POST /v1/billing/verify",
 ].sort();
 
 describe("openapi.yaml", () => {
-  it("is OpenAPI 3.1 and lists exactly the CONTRACTS Phase 9 endpoints", () => {
+  it("is OpenAPI 3.1 and lists exactly the CONTRACTS Phase 9 + Phase 12 endpoints", () => {
     expect(spec.openapi).toBe("3.1.0");
     const documented = Object.entries(spec.paths)
       .flatMap(([p, ops]) => Object.keys(ops).map((m) => `${m.toUpperCase()} ${p}`))

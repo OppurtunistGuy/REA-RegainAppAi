@@ -118,6 +118,7 @@ describe("db", () => {
       "keyholder_links",
       "otp_codes",
       "plans",
+      "purchases",
       "sessions",
       "tokens",
       "unlock_requests",
