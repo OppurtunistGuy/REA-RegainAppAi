@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Phase 6 may tune this. Only the listed packages are observed. -->
+<!--
+  Phase 6. Only the listed packages are observed. At runtime SteadyAccessibilityService narrows/extends
+  this to the detector config's packages plus any "app:<pkg>" blocks in the plan (observedPackages()).
+  No text is ever read for storage; the tree is inspected in memory and dropped.
+-->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
-    android:description="@string/accessibility_service_description"
-    android:notificationTimeout="300"
-    android:packageNames="com.instagram.android,com.google.android.youtube,com.snapchat.android,com.facebook.katana,com.android.chrome" />
+    android:canPerformGestures="false"
+    android:description="@string/enforcement_a11y_description"
+    android:notificationTimeout="100"
+    android:packageNames="com.instagram.android,com.google.android.youtube,com.snapchat.android,com.facebook.katana" />
