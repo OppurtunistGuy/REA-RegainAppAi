@@ -3,11 +3,19 @@ package app.steady
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.Text
+import androidx.activity.enableEdgeToEdge
+import app.steady.nav.SteadyNavHost
+import app.steady.ui.theme.SteadyTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setContent { Text("Steady") }
+        val container = appContainer
+        setContent {
+            SteadyTheme {
+                SteadyNavHost(container = container)
+            }
+        }
     }
 }
