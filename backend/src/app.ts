@@ -8,6 +8,7 @@ import { routePath } from "hono/route";
 import { secureHeaders } from "hono/secure-headers";
 import type { z } from "zod";
 import { DevPurchaseVerifier, verifierFromEnv, type PurchaseVerifier } from "./billing.js";
+import { otpSenderFromEnv, type OtpSendFn, type OtpSender } from "./otp.js";
 import type { Db } from "./db.js";
 import { getEntitlement, getTier, setTier } from "./entitlements.js";
 import {
@@ -29,6 +30,7 @@ import {
   OtpStartSchema,
   OtpVerifySchema,
   PlanSchema,
+  PROTECTED_PACKAGES,
   UnlockRequestSchema,
   type Plan,
 } from "./schemas.js";
@@ -39,15 +41,16 @@ export interface Clock {
 }
 export const systemClock: Clock = { now: () => new Date() };
 
-export type OtpSender = (contact: string, code: string) => void | Promise<void>;
-export const consoleOtpSender: OtpSender = (contact, code) => {
-  console.log(`[otp] code for ${contact}: ${code}`);
-};
+export type { OtpSender } from "./otp.js";
 
 export interface AppOptions {
   db: Db;
   clock?: Clock;
-  otpSender?: OtpSender;
+  /**
+   * Delivers OTP codes. Defaults to otpSenderFromEnv(): provider configured → HTTP sender;
+   * else the console sender outside production; `null` (production, no provider) → OTP start 503.
+   */
+  otpSender?: OtpSender | OtpSendFn | null;
   /** Path to the detector config JSON. Defaults to ../shared/detectors/detectors.v1.json. */
   detectorsPath?: string;
   /** When true every OTP is "000000". Defaults to NODE_ENV === "test". */
@@ -128,11 +131,8 @@ const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 const iso = (ms: number) => new Date(ms).toISOString();
 const normalizeContact = (c: string) => c.trim().toLowerCase();
 
-function defaultName(contact: string): string {
-  const at = contact.indexOf("@");
-  if (at > 0) return contact.slice(0, Math.min(at, 60));
-  return `•••${contact.slice(-4)}`;
-}
+/** Shown to key holders when the user gave no name. Never derived from the email or phone. */
+export const DEFAULT_DISPLAY_NAME = "Your friend";
 
 function safeEqualHex(a: string, b: string): boolean {
   const ab = Buffer.from(a, "hex");
@@ -197,7 +197,9 @@ function unlockStatus(r: UnlockRow) {
 export function createApp(opts: AppOptions) {
   const db = opts.db;
   const clock = opts.clock ?? systemClock;
-  const otpSender = opts.otpSender ?? consoleOtpSender;
+  const rawSender = opts.otpSender !== undefined ? opts.otpSender : otpSenderFromEnv();
+  const otpSender: OtpSender | null =
+    typeof rawSender === "function" ? { name: "custom", send: rawSender } : rawSender;
   const detectorsPath = opts.detectorsPath ?? DEFAULT_DETECTORS_PATH;
   const fixedOtp = opts.fixedOtp ?? process.env.NODE_ENV === "test";
   const extraOrigins = new Set(opts.corsOrigins ?? []);
@@ -362,6 +364,9 @@ export function createApp(opts: AppOptions) {
 
   v1.post("/auth/otp/start", async (c) => {
     const body = await parseBody(c, OtpStartSchema);
+    if (!otpSender) {
+      throw new ApiError(503, "otp_not_configured", "Sign-in codes cannot be sent right now");
+    }
     const contact = normalizeContact(body.contact);
     const now = nowMs();
     const recent = db
@@ -373,7 +378,15 @@ export function createApp(opts: AppOptions) {
     db.prepare(
       "INSERT INTO otp_codes (contact, code_hash, created_at, expires_at) VALUES (?, ?, ?, ?)",
     ).run(contact, sha256(`${contact}:${code}`), now, now + OTP_TTL_MS);
-    await otpSender(contact, code);
+    try {
+      await otpSender.send(contact, code);
+    } catch (err) {
+      console.error(
+        `[otp] delivery via ${otpSender.name} failed rid=${c.get("requestId") ?? "-"}:`,
+        err instanceof Error ? err.message : "error",
+      );
+      throw new ApiError(502, "otp_send_failed", "The code could not be sent. Try again.");
+    }
     return c.body(null, 204);
   });
 
@@ -408,7 +421,7 @@ export function createApp(opts: AppOptions) {
       db.prepare("INSERT INTO users (id, contact, name, created_at) VALUES (?, ?, ?, ?)").run(
         user.id,
         contact,
-        body.name ?? defaultName(contact),
+        body.name ?? DEFAULT_DISPLAY_NAME,
         now,
       );
     } else if (body.name) {
@@ -453,6 +466,15 @@ export function createApp(opts: AppOptions) {
   v1.put("/plan", requireAuth, async (c) => {
     const userId = c.get("userId");
     const plan = await parseBody(c, PlanSchema);
+    const protectedApp = plan.distractions.find(
+      (d) => d.id.startsWith("app:") && PROTECTED_PACKAGES.has(d.id.slice(4)),
+    );
+    if (protectedApp) {
+      throw badRequest(
+        "protected_app",
+        `${protectedApp.id.slice(4)} keeps the phone safe to use and cannot be blocked`,
+      );
+    }
     db.exec("BEGIN IMMEDIATE");
     try {
       const current = loadPlan(userId);

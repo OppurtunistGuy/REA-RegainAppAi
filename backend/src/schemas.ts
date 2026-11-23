@@ -63,6 +63,21 @@ export const PlanSchema = z
 
 export type Plan = z.infer<typeof PlanSchema>;
 
+/**
+ * Packages a plan may never block (`app:<package>` surfaces): settings, installers, the store,
+ * calls and emergency, and Steady itself. PUT /v1/plan answers 400 `protected_app`.
+ */
+export const PROTECTED_PACKAGES: ReadonlySet<string> = new Set([
+  "com.android.settings",
+  "com.google.android.packageinstaller",
+  "com.android.packageinstaller",
+  "com.android.vending",
+  "com.google.android.dialer",
+  "com.android.phone",
+  "com.android.emergency",
+  "app.steady",
+]);
+
 // ---- Auth ----
 
 export const OtpStartSchema = z

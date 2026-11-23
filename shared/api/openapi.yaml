@@ -41,6 +41,16 @@ paths:
         "204": { description: Code sent }
         "400": { $ref: "#/components/responses/BadRequest" }
         "429": { $ref: "#/components/responses/RateLimited" }
+        "502":
+          description: The email/SMS provider failed (`otp_send_failed`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: No code sender configured on a production server (`otp_not_configured`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /v1/auth/otp/verify:
     post:
@@ -116,6 +126,10 @@ paths:
       description: |
         `version` must equal the stored version + 1 (the first PUT must be version 1).
         Otherwise 409 with the current stored plan (or null if none is stored).
+        `app:` surfaces may not target protected packages (com.android.settings,
+        com.google.android.packageinstaller, com.android.packageinstaller, com.android.vending,
+        com.google.android.dialer, com.android.phone, com.android.emergency, app.steady):
+        400 `protected_app`.
       requestBody:
         required: true
         content:
@@ -127,7 +141,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Plan" }
-        "400": { $ref: "#/components/responses/BadRequest" }
+        "400":
+          description: Invalid JSON or body (`invalid_json`, `invalid_body`) or a protected app (`protected_app`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "409":
           description: Version conflict (`version_conflict`)
@@ -564,7 +582,9 @@ components:
           type: string
           minLength: 1
           maxLength: 60
-          description: Optional display name shown to key holders (additive to the contract).
+          description: |
+            Optional display name shown to key holders (additive to the contract). Without one,
+            new users are shown as "Your friend"; nothing is derived from the contact.
 
     AuthToken:
       type: object
