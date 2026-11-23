@@ -1,6 +1,7 @@
 // Options page: API base URL, OTP sign-in, current state + next block, site permissions.
 
 import { logout, otpStart, otpVerify } from "../api.js";
+import { DEV_BUILD } from "../buildinfo.js";
 import { originsFor, planDomains } from "../policy.js";
 import { read, write, type Settings } from "../storage.js";
 import type { Message, Plan } from "../types.js";
@@ -56,7 +57,11 @@ async function save(): Promise<void> {
   const base = $<HTMLInputElement>("apiBase").value.trim().replace(/\/+$/, "");
   const origin = apiOrigin(base);
   if (!origin) {
-    say("saveMsg", "That doesn't look like an http(s) URL.", "err");
+    say(
+      "saveMsg",
+      DEV_BUILD ? "That doesn't look like an http(s) URL." : "Use an https:// address for the server.",
+      "err",
+    );
     return;
   }
   // chrome.permissions.request must run inside the click, before any other await.

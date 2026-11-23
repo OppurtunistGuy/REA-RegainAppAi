@@ -1,5 +1,6 @@
 // Typed wrappers around chrome.storage.local. Everything the extension keeps lives here, on this device.
 
+import { BUILD_API_BASE } from "./buildinfo.js";
 import type { PendingUnlock, Plan, PublishedStatus, UnlockGrant } from "./types.js";
 
 export interface Settings {
@@ -27,7 +28,7 @@ export interface StoreShape {
   pendingUnlock: PendingUnlock | null;
 }
 
-export const DEFAULT_API_BASE = "http://localhost:8787";
+export const DEFAULT_API_BASE = BUILD_API_BASE;
 
 export const DEFAULTS: StoreShape = {
   settings: { apiBase: DEFAULT_API_BASE, token: null, userId: null },

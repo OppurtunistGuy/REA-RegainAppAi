@@ -139,4 +139,9 @@ describe("format", () => {
     expect(apiOrigin("ftp://x")).toBeNull();
     expect(apiOrigin("nope")).toBeNull();
   });
+  it("release builds require https for the API", () => {
+    expect(apiOrigin("http://localhost:8787", false)).toBeNull();
+    expect(apiOrigin("http://api.example.com", false)).toBeNull();
+    expect(apiOrigin("https://api.example.com:8443", false)).toBe("https://api.example.com/*");
+  });
 });
