@@ -1,0 +1,41 @@
+/* Interstitial: the prototype's intercept sheet, centred on a quiet background. */
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: linear-gradient(160deg, #3a2a4a, #1d2633);
+}
+.sheet {
+  width: 100%;
+  max-width: 440px;
+  background: var(--screen);
+  border-radius: 28px;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 30px 60px -30px rgba(10, 20, 40, .6);
+}
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.title { font-weight: 800; font-size: 1.3rem; line-height: 1.15; }
+.breath { display: flex; align-items: center; gap: 12px; }
+.breath .dot {
+  width: 48px; height: 48px; border-radius: 50%; flex: none;
+  background: var(--urge-soft); color: var(--urge);
+  display: grid; place-items: center; font-family: var(--mono); font-size: .95rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .breath .dot.go { animation: breathe 4s ease-in-out infinite; }
+}
+@keyframes breathe { 0%, 100% { transform: scale(.9); } 50% { transform: scale(1.12); } }
+.choice { display: grid; gap: 8px; }
+.timerbar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.timerbar b { display: block; height: 100%; width: 100%; background: var(--accent); transition: width 1s linear; }
+.flash {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+  padding: 22px 18px; min-height: 170px; display: flex; flex-direction: column;
+  justify-content: center; gap: 10px; text-align: center;
+}
+.flash .q { font-family: var(--display); font-size: 1.15rem; font-weight: 700; }
+.note { font-size: .9rem; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--ink); }

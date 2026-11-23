@@ -1,0 +1,21 @@
+{
+  "name": "steady-extension",
+  "version": "0.10.0",
+  "private": true,
+  "description": "Steady Chrome extension (MV3): hides Shorts/Reels and blocks listed sites during study blocks.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "e2e": "npm run build && node e2e/extension.e2e.mjs"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.3.7",
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.28.2",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

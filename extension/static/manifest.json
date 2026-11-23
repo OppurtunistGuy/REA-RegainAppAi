@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Steady",
+  "description": "Hides YouTube Shorts and Instagram Reels and pauses listed sites during your scheduled study blocks.",
+  "version": "0.10.0",
+  "minimum_chrome_version": "116",
+  "permissions": ["storage", "alarms", "declarativeNetRequest"],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "*://*.instagram.com/*",
+    "https://api.steady.app/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "optional_host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content/youtube.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.instagram.com/*"],
+      "js": ["content/instagram.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["interstitial.html", "interstitial.js", "interstitial.css", "tokens.css"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "action": { "default_title": "Steady", "default_popup": "popup.html" },
+  "options_ui": { "page": "options.html", "open_in_tab": true }
+}

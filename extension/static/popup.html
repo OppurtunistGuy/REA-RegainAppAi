@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Steady</title>
+  <link rel="stylesheet" href="tokens.css">
+  <style>
+    body { width: 320px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .state { font-family: var(--display); font-weight: 800; font-size: 1.15rem; line-height: 1.2; }
+    .links { display: flex; gap: 8px; }
+    .links button { padding: 8px; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="row"><span class="eyebrow">Steady</span><span class="pill" id="pill">idle</span></div>
+  <div class="card">
+    <div class="state" id="headline">Loading…</div>
+    <div class="sub" id="timeLeft" hidden></div>
+  </div>
+  <div class="card" id="nextCard" hidden>
+    <span class="eyebrow">Next block</span>
+    <div id="next"></div>
+  </div>
+  <p class="sub" id="sync"></p>
+  <div class="links">
+    <button class="ghost" id="syncBtn">Sync now</button>
+    <button class="ghost" id="optionsBtn">Options</button>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
