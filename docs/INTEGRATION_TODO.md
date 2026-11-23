@@ -23,3 +23,10 @@
 ## From Phase 9 (backend)
 - Bearer tokens never expire; add expiry/rotation.
 - Missing `DELETE /v1/me` for "delete my synced data".
+
+## From Phase 7 (intercept + focus)
+- Overlay (Phase 6) should pass raw schedule label and compute opensToday/opensBaseline like InterceptViewModel
+  (BASELINE_DAYS, InterceptCopy.baseline) instead of the placeholder 11.
+- Check intercept double-counting between in-app Intercept screen and the overlay.
+- Focus session starts when Focus opens, not at schedule start.
+- Pending key-holder requests are shown but polled only by Phase 11.
