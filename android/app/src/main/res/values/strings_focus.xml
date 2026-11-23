@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phase 7: intercept sheet, focus block and emergency unlock. Plain words, no shaming. -->
+<resources>
+    <!-- Intercept -->
+    <string name="intercept_breathe">Breathe once.</string>
+    <string name="intercept_opened_during">You opened %1$s during %2$s.</string>
+    <string name="intercept_opened">You opened %1$s.</string>
+    <string name="intercept_question">What did you come here for?</string>
+    <string name="intercept_close">Close %1$s</string>
+    <string name="intercept_swap">60-second swap: a flashcard</string>
+    <string name="intercept_messages_plural">Just messages (%1$s stay hidden)</string>
+    <string name="intercept_messages_singular">Just messages (%1$s stays hidden)</string>
+    <string name="intercept_opens_today">%1$s opens today</string>
+    <string name="intercept_count_down_from">%1$d · down from %2$d</string>
+    <plurals name="intercept_breath_seconds_left">
+        <item quantity="one">Breathe. %d second to go.</item>
+        <item quantity="other">Breathe. %d seconds to go.</item>
+    </plurals>
+    <string name="intercept_breath_done">Breath done. All choices are open.</string>
+    <string name="intercept_check">✓</string>
+
+    <!-- Focus block -->
+    <string name="focus_block_default">Focus block</string>
+    <string name="focus_label_strict">%1$s · strict</string>
+    <string name="focus_label_flexible">%1$s · flexible</string>
+    <string name="focus_locked_until">Locked until %1$s</string>
+    <string name="focus_until">Until %1$s</string>
+    <string name="focus_left_of">left of %1$s</string>
+    <string name="focus_ring_description">About %1$s left of %2$s</string>
+    <string name="focus_ring_done">Block done</string>
+    <string name="focus_now">Now</string>
+    <string name="focus_next">Next: %1$s</string>
+    <string name="focus_no_task">Pick one small thing and start there</string>
+    <string name="focus_no_task_hint">Add a task on Today to see its first step here.</string>
+    <string name="focus_blocked_now">Blocked right now</string>
+    <string name="focus_blocked_manual">Set aside for this block</string>
+    <string name="focus_nothing_blocked">Nothing on your list yet.</string>
+    <string name="focus_unlock_note_reason">Emergency unlock asks for a %1$d-second wait and a typed reason.</string>
+    <string name="focus_unlock_note_wait">Emergency unlock asks for a %1$d-second wait.</string>
+    <string name="focus_unlock_note_told">%1$s gets told.</string>
+    <string name="focus_finish">Finish block</string>
+    <string name="focus_emergency_unlock">Emergency unlock</string>
+    <string name="focus_done_note">Time’s up. Nice work staying with it.</string>
+    <string name="focus_waiting_on">Waiting on %1$s</string>
+    <string name="focus_saving">Saving…</string>
+
+    <!-- Emergency unlock sheet -->
+    <string name="unlock_title">Emergency unlock</string>
+    <string name="unlock_intro">Take a breath first. If you still need it after the wait, say why.</string>
+    <plurals name="unlock_wait_seconds">
+        <item quantity="one">You can continue in %d second</item>
+        <item quantity="other">You can continue in %d seconds</item>
+    </plurals>
+    <string name="unlock_wait_done">The wait is done.</string>
+    <string name="unlock_what">What to open</string>
+    <string name="unlock_everything">Everything</string>
+    <string name="unlock_reason_label">What do you need it for?</string>
+    <string name="unlock_reason_hint">For example: lecture link on YouTube</string>
+    <string name="unlock_reason_short">A few more words, please. At least 8 letters.</string>
+    <string name="unlock_reason_ok">Thanks, that works.</string>
+    <string name="unlock_reason_optional">A reason is optional.</string>
+    <string name="unlock_ask">Ask %1$s</string>
+    <string name="unlock_self">Unlock for %1$d min</string>
+    <string name="unlock_sending">Sending…</string>
+    <string name="unlock_pending">Asked %1$s. You’ll get %2$d min if they approve.</string>
+    <string name="unlock_granted">Unlocked until %1$s. Your block keeps running.</string>
+    <string name="unlock_failed">That didn’t go through. Try again in a moment.</string>
+    <string name="unlock_back">Back to focus</string>
+    <string name="unlock_cancel">Never mind</string>
+</resources>
