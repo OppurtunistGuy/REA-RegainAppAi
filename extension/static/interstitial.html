@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Breathe once · Steady</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="interstitial.css">
+</head>
+<body>
+  <main class="sheet" aria-live="polite">
+    <p class="eyebrow">Steady · <span id="surfaceName">this site</span></p>
+
+    <section id="choicesPanel" class="stack">
+      <div class="breath">
+        <div class="dot" id="breathDot" aria-label="Breath countdown">5</div>
+        <div>
+          <strong>Breathe once.</strong>
+          <div class="sub" id="blockLine">You opened this during a study block.</div>
+        </div>
+      </div>
+      <h1 class="title">What did you come here for?</h1>
+      <div class="choice">
+        <button class="close-btn" id="closeBtn">Close tab</button>
+        <button class="ghost" id="swapBtn" disabled>60-second swap</button>
+        <button class="ghost" id="unlockBtn" disabled>Unlock for 15 min</button>
+      </div>
+    </section>
+
+    <section id="swapPanel" class="stack" hidden>
+      <div class="row"><span class="eyebrow">60-second swap</span><span class="pill acc" id="swapTime">1:00</span></div>
+      <div class="timerbar"><b id="swapBar"></b></div>
+      <div class="flash">
+        <span class="eyebrow">Coming to the browser</span>
+        <div class="q">Your flashcards live in the Steady phone app for now.</div>
+        <p class="sub">Use this minute to recall one thing from today’s notes. Say it out loud, or jot it down.</p>
+      </div>
+      <button class="close-btn" id="swapDone">Back to study (close tab)</button>
+      <button class="ghost" id="swapBack">Back</button>
+    </section>
+
+    <section id="unlockPanel" class="stack" hidden>
+      <h2 class="title">Unlock takes a moment</h2>
+      <p class="sub" id="unlockWait">Wait 30s.</p>
+      <label>
+        <span id="reasonHint">A few words on why.</span>
+        <input type="text" id="reason" autocomplete="off" maxlength="200" placeholder="e.g. lecture link my teacher sent">
+      </label>
+      <p class="note" id="keyholderNote" hidden></p>
+      <p class="sub">Your reason stays on this computer. Nothing about this page is sent anywhere.</p>
+      <button class="cta" id="unlockConfirm" disabled>Unlock</button>
+      <button class="ghost" id="unlockCancel">Never mind</button>
+    </section>
+
+    <section id="idlePanel" class="stack" hidden>
+      <h1 class="title">No study block right now</h1>
+      <p class="sub">This page was blocked earlier, but the block has ended or is unlocked.</p>
+      <button class="cta" id="continueBtn">Continue</button>
+    </section>
+  </main>
+  <script src="interstitial.js"></script>
+</body>
+</html>
