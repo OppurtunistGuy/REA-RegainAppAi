@@ -233,3 +233,23 @@ Reads `GET /v1/plan` and `GET /v1/detectors` with a token from the options page.
 Shorts shelf / `/shorts/` and Instagram `/reels/` with content scripts, and shows a breath
 interstitial page with the same three exits. Schedule logic is a TypeScript port of `RulesEngine.state`
 with the same test vectors (`shared/schema/test-vectors.json`).
+
+---
+
+## Phase 12 additions (backend ⇄ Android)
+
+```
+POST   /v1/auth/logout                                   → 204   (revokes the calling token)
+DELETE /v1/me                                            → 204   (erases plan, sessions, unlock requests, invites,
+                                                                  key-holder links both ways, entitlements, tokens)
+GET    /v1/keyholder/links                               → [{linkId, keyHolderUserId, keyHolderName, createdAt}]   (owner view)
+GET    /v1/keyholder/owners                              → [{linkId, ownerUserId, ownerName, createdAt}]           (key-holder view)
+DELETE /v1/keyholder/links/{linkId}                      → 204   (either side may remove; else 404)
+GET    /v1/keyholder/summary?ownerUserId=&weekStart=&tz= → same body as /v1/summary/weekly, only for a linked key holder (else 404)
+POST   /v1/billing/verify  {productId, purchaseToken}    → {tier, features}
+       productId ∈ {"steady_plus_monthly","steady_plus_yearly"}. Verification goes through a `PurchaseVerifier`
+       interface. Without Play credentials configured: non-production accepts tokens starting "test-";
+       production returns 503 {error:{code:"billing_not_configured"}}.
+```
+Tokens expire after 90 days of inactivity (sliding); expired → 401 `token_expired`.
+Free tier allows 1 key-holder link per owner: a second accept → 409 `keyholder_limit` unless the owner is Plus.
