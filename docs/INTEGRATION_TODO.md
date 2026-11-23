@@ -30,3 +30,8 @@
 - Check intercept double-counting between in-app Intercept screen and the overlay.
 - Focus session starts when Focus opens, not at schedule start.
 - Pending key-holder requests are shown but polled only by Phase 11.
+
+## From Phase 8 (learning UI)
+- Add `CardRepository.delete(ids)` + CardDao DELETE; add Delete to CardRow in ReviewScreen.
+- Add `SessionRepository.interceptsBySurface(from, toExclusive): Flow<Map<String, Int>>` (GROUP BY surfaceId)
+  and pass it to InsightsViewModel's `surfaceCounts`.
