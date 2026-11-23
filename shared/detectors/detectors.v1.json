@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "_note": "Seed matchers. View ids change when apps update; verify on a real device and ship fixes by bumping version via GET /v1/detectors.",
+  "detectors": [
+    {
+      "surfaceId": "instagram.reels",
+      "packageName": "com.instagram.android",
+      "anchor": { "viewIdEndsWith": ":id/tab_bar" },
+      "anyOf": [
+        { "viewIdEndsWith": ":id/clips_viewer_view_pager" },
+        { "viewIdEndsWith": ":id/clips_tab", "selected": true },
+        { "descContains": "Reels", "selected": true }
+      ]
+    },
+    {
+      "surfaceId": "youtube.shorts",
+      "packageName": "com.google.android.youtube",
+      "anchor": { "viewIdEndsWith": ":id/pivot_bar" },
+      "anyOf": [
+        { "viewIdEndsWith": ":id/reel_recycler" },
+        { "viewIdEndsWith": ":id/reel_player_page_container" },
+        { "descContains": "Shorts", "selected": true }
+      ]
+    },
+    {
+      "surfaceId": "snapchat.spotlight",
+      "packageName": "com.snapchat.android",
+      "anchor": { "viewIdEndsWith": ":id/ngs_navigation_bar" },
+      "anyOf": [
+        { "descContains": "Spotlight", "selected": true }
+      ]
+    },
+    {
+      "surfaceId": "facebook.reels",
+      "packageName": "com.facebook.katana",
+      "anyOf": [
+        { "descContains": "Reels", "selected": true },
+        { "viewIdEndsWith": ":id/reels_viewer" }
+      ]
+    }
+  ]
+}
