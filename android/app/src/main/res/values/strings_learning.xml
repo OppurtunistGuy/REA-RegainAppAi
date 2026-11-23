@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phase 8: swap, review, recap and insights copy. Wellness wording only; no streaks, no shame. -->
+<resources>
+    <!-- Shared rating buttons -->
+    <string name="rate_again">Again</string>
+    <string name="rate_hard">Hard</string>
+    <string name="rate_good">Got it</string>
+    <string name="learning_show_answer">Show answer</string>
+    <string name="learning_from_notes">From your notes · %1$s</string>
+    <string name="learning_from_notes_plain">From your notes</string>
+    <string name="learning_card_front">Front (question)</string>
+    <string name="learning_card_back">Back (answer)</string>
+    <string name="learning_card_front_hint">Moment of inertia of a ring?</string>
+    <string name="learning_card_back_hint">I = MR²</string>
+    <string name="learning_save_card">Save card</string>
+    <string name="learning_cancel">Cancel</string>
+    <string name="learning_back">Back</string>
+    <string name="learning_rating_group">How well did you know it?</string>
+
+    <!-- Swap -->
+    <string name="swap_label">60-second swap</string>
+    <string name="swap_timer_desc">%1$s left</string>
+    <string name="swap_counts_toward">Same quick hit as a Reel, but it counts toward %1$s review.</string>
+    <string name="swap_time_up">Time’s up. Finish the card or head back, both are fine.</string>
+    <string name="swap_rated_again">No problem. It comes back in 10 minutes.</string>
+    <string name="swap_rated_next">Nice. Next time you see it: %1$s.</string>
+    <string name="swap_back_to">Back to %1$s</string>
+    <string name="swap_back_to_focus">Back to focus</string>
+    <string name="swap_empty_title">No cards yet</string>
+    <string name="swap_empty_body">A swap shows one flashcard from your own notes. Start with three sample physics cards, or write your own.</string>
+    <string name="swap_add_samples">Add sample physics cards</string>
+    <string name="swap_write_card">Write a card</string>
+
+    <!-- Review -->
+    <string name="review_label">Review</string>
+    <string name="review_title">Cards due now</string>
+    <string name="review_progress">%1$d of %2$d</string>
+    <string name="review_done_title">All done for now</string>
+    <string name="review_nothing_due">Nothing due right now.</string>
+    <string name="review_next_due">Next card due %1$s.</string>
+    <string name="review_no_cards">No cards yet. Add one below, or write three recall lines after your next block.</string>
+    <string name="review_check_again">Check for more</string>
+    <string name="review_your_cards">Your cards</string>
+    <string name="review_add_card">Add a card</string>
+    <string name="review_edit">Edit</string>
+    <string name="review_edit_card">Edit card</string>
+    <string name="review_card_due">Due %1$s</string>
+
+    <!-- Recap -->
+    <string name="recap_block_done">Block done · %1$d min</string>
+    <string name="recap_block_done_plain">Block done</string>
+    <string name="recap_title">What stuck? Three lines.</string>
+    <string name="recap_line_label">Line %1$d</string>
+    <string name="recap_hint_1">I depends on how mass is spread, not just total mass</string>
+    <string name="recap_hint_2">Parallel axis: I = I_cm + Md²</string>
+    <string name="recap_hint_3">Ring has bigger I than disc of same mass</string>
+    <string name="recap_save">Turn into review cards</string>
+    <plurals name="recap_turned_into">
+        <item quantity="one">Turned into %d review card</item>
+        <item quantity="other">Turned into %d review cards</item>
+    </plurals>
+    <string name="recap_no_cards">No cards from those lines yet. Try “term = meaning” or “A: B”.</string>
+    <string name="recap_focused_today">focused today</string>
+    <string name="recap_urges_caught">urges caught</string>
+    <string name="recap_unlocks">unlocks</string>
+    <string name="recap_week_label">This week · goal %1$d of 7 days</string>
+    <string name="recap_week_day_done">%1$s, focused</string>
+    <string name="recap_week_day_open">%1$s, open</string>
+    <string name="recap_no_streak">No streak to lose. Miss a day and the goal just waits.</string>
+    <string name="recap_goal_met">Goal met this week. Anything more is a bonus.</string>
+    <plurals name="recap_goal_left">
+        <item quantity="one">%d more day this week meets the goal.</item>
+        <item quantity="other">%d more days this week meet the goal.</item>
+    </plurals>
+    <string name="recap_partner">See what your friend sees</string>
+    <string name="recap_done">Done</string>
+
+    <!-- Insights -->
+    <string name="insights_label">Last 4 weeks</string>
+    <string name="insights_title">How your weeks went</string>
+    <string name="insights_focus">Focus minutes per week</string>
+    <string name="insights_intercepts">Urges caught per week</string>
+    <string name="insights_this_week">This wk</string>
+    <string name="insights_surfaces">Where urges came from</string>
+    <string name="insights_surfaces_empty">Per-app counts will show here once they are recorded.</string>
+    <string name="insights_due">Cards due in the next 7 days</string>
+    <plurals name="insights_due_total">
+        <item quantity="one">%d card due this week</item>
+        <item quantity="other">%d cards due this week</item>
+    </plurals>
+    <string name="insights_due_none">Nothing due this week. Three recall lines after a block will add some.</string>
+    <string name="insights_review_now">Review due cards</string>
+    <string name="insights_summary_empty">Nothing logged yet. Your first focus block will show up here.</string>
+    <plurals name="insights_summary_week">
+        <item quantity="one">This week: %1$s of focus and %2$d urge turned into a pause.</item>
+        <item quantity="other">This week: %1$s of focus and %2$d urges turned into a pause.</item>
+    </plurals>
+    <string name="insights_trend_up">A bit more than last week.</string>
+    <string name="insights_trend_same">About the same as last week.</string>
+    <string name="insights_trend_down">A lighter week, and that’s okay. The goal just waits.</string>
+</resources>
