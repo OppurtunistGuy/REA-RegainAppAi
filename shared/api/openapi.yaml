@@ -1,0 +1,544 @@
+openapi: 3.1.0
+info:
+  title: Steady API
+  version: 1.0.0
+  description: |
+    Backend for Steady (Phase 9). Syncs the Plan, pairs a key holder who approves
+    emergency unlocks, stores aggregate focus sessions, serves detector configs and
+    reports entitlements.
+
+    Privacy rule: every request body is validated strictly. Any field not listed in
+    the schema is rejected with 400 `invalid_body`, so screen contents can never be
+    stored. Sessions carry only times and counts.
+
+    Errors always use the `Error` envelope `{error: {code, message}}`.
+servers:
+  - url: http://localhost:8787
+    description: Local development
+security:
+  - bearer: []
+
+paths:
+  /v1/auth/otp/start:
+    post:
+      operationId: otpStart
+      summary: Send a one-time code to a contact (email or phone)
+      description: |
+        Rate limited to 5 codes per contact per hour. Codes expire after 10 minutes.
+        When the server runs with NODE_ENV=test the code is always "000000".
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OtpStartRequest" }
+      responses:
+        "204": { description: Code sent }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /v1/auth/otp/verify:
+    post:
+      operationId: otpVerify
+      summary: Exchange a code for a bearer token
+      description: Creates the user on first sign-in. A code is single use and locks after 5 wrong attempts.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OtpVerifyRequest" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthToken" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401":
+          description: Code invalid, expired, used or locked (`invalid_code`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/plan:
+    get:
+      operationId: getPlan
+      summary: Get the caller's Plan
+      responses:
+        "200":
+          description: Stored plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      operationId: putPlan
+      summary: Replace the Plan with optimistic concurrency
+      description: |
+        `version` must equal the stored version + 1 (the first PUT must be version 1).
+        Otherwise 409 with the current stored plan (or null if none is stored).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Plan" }
+      responses:
+        "200":
+          description: Stored plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: Version conflict (`version_conflict`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanConflict" }
+
+  /v1/detectors:
+    get:
+      operationId: getDetectors
+      summary: Current detector config (shared/detectors/detectors.v1.json)
+      security: []
+      responses:
+        "200":
+          description: Detector config
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DetectorConfig" }
+        "503":
+          description: Config file unavailable (`detectors_unavailable`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/keyholder/invites:
+    post:
+      operationId: createInvite
+      summary: Owner creates a single-use 6-character invite code (valid 24h)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Empty" }
+      responses:
+        "201":
+          description: Invite created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invite" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/keyholder/invites/{code}/accept:
+    post:
+      operationId: acceptInvite
+      summary: Another user accepts the invite and becomes the owner's key holder
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: Invite code (case-insensitive)
+          schema: { type: string, pattern: "^[A-Za-z0-9]{6}$" }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Empty" }
+      responses:
+        "200":
+          description: Linked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InviteAccepted" }
+        "400":
+          description: Invalid body, or the owner tried to accept their own invite (`self_invite`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410":
+          description: Invite already used (`invite_used`) or expired (`invite_expired`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/keyholder/requests:
+    get:
+      operationId: listKeyholderRequests
+      summary: Pending unlock requests from every owner the caller holds a key for
+      responses:
+        "200":
+          description: Pending requests, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/KeyholderRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/unlock-requests:
+    post:
+      operationId: createUnlockRequest
+      summary: Owner asks their key holder for an unlock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UnlockRequestCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [id, status]
+                properties:
+                  id: { type: string }
+                  status: { const: pending }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: No key holder linked (`no_keyholder`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/unlock-requests/{id}:
+    get:
+      operationId: getUnlockRequest
+      summary: Poll an unlock request (owner or linked key holder)
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+      responses:
+        "200":
+          description: Request status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnlockStatus" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/unlock-requests/{id}/decision:
+    post:
+      operationId: decideUnlockRequest
+      summary: Linked key holder approves or denies
+      description: |
+        On approval `until` = decision time + `minutes`. `minutes` defaults to the owner's
+        `plan.unlockPolicy.approvalMinutes`, else 15; maximum 240.
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Decision" }
+      responses:
+        "200":
+          description: Decided
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnlockStatus" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Caller is not the owner's linked key holder (`forbidden`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Already decided (`already_decided`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/sessions:
+    post:
+      operationId: postSession
+      summary: Record an aggregate focus session (idempotent by id)
+      description: Re-posting an id the caller already sent is a no-op (first write wins).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FocusSession" }
+      responses:
+        "204": { description: Stored (or already stored) }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/summary/weekly:
+    get:
+      operationId: weeklySummary
+      summary: Totals for the 7 days starting at weekStart
+      description: |
+        A session belongs to the local date its start falls on (in `tz`, default UTC).
+        `focusMinutes` is the rounded total duration; `blocks` the number of sessions;
+        `days` the sorted distinct dates that had at least one session.
+      parameters:
+        - name: weekStart
+          in: query
+          required: true
+          schema: { type: string, format: date, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+        - name: tz
+          in: query
+          required: false
+          description: IANA time zone, e.g. Asia/Kolkata. Defaults to UTC.
+          schema: { type: string, default: UTC }
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WeeklySummary" }
+        "400":
+          description: Bad weekStart or tz (`invalid_query`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/entitlements:
+    get:
+      operationId: getEntitlements
+      summary: The caller's tier and feature flags
+      responses:
+        "200":
+          description: Entitlement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Entitlement" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Token from POST /v1/auth/otp/verify.
+
+  parameters:
+    RequestId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: Invalid JSON (`invalid_json`) or body failed strict validation (`invalid_body`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid bearer token (`unauthorized`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Not found (`not_found`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Too many requests (`rate_limited`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+
+    Empty:
+      type: object
+      additionalProperties: false
+
+    OtpStartRequest:
+      type: object
+      additionalProperties: false
+      required: [contact]
+      properties:
+        contact: { type: string, minLength: 3, maxLength: 254, description: Email or phone; trimmed and lower-cased }
+
+    OtpVerifyRequest:
+      type: object
+      additionalProperties: false
+      required: [contact, code]
+      properties:
+        contact: { type: string, minLength: 3, maxLength: 254 }
+        code: { type: string, pattern: "^[0-9]{6}$" }
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: Optional display name shown to key holders (additive to the contract).
+
+    AuthToken:
+      type: object
+      additionalProperties: false
+      required: [token, userId]
+      properties:
+        token: { type: string }
+        userId: { type: string }
+
+    Plan:
+      $ref: "../schema/plan.schema.json"
+
+    PlanConflict:
+      type: object
+      required: [error, current]
+      properties:
+        error: { $ref: "#/components/schemas/Error/properties/error" }
+        current:
+          oneOf:
+            - { type: "null" }
+            - { $ref: "#/components/schemas/Plan" }
+
+    Matcher:
+      type: object
+      additionalProperties: false
+      properties:
+        viewIdEquals: { type: string }
+        viewIdEndsWith: { type: string }
+        textEquals: { type: string }
+        descContains: { type: string }
+        classEquals: { type: string }
+        selected: { type: boolean }
+
+    DetectorConfig:
+      type: object
+      required: [version, detectors]
+      properties:
+        version: { type: integer }
+        detectors:
+          type: array
+          items:
+            type: object
+            required: [surfaceId, packageName, anyOf]
+            properties:
+              surfaceId: { type: string }
+              packageName: { type: string }
+              anyOf:
+                type: array
+                items: { $ref: "#/components/schemas/Matcher" }
+              anchor: { $ref: "#/components/schemas/Matcher" }
+
+    Invite:
+      type: object
+      additionalProperties: false
+      required: [code, expiresAt]
+      properties:
+        code: { type: string, pattern: "^[A-HJ-NP-Z2-9]{6}$" }
+        expiresAt: { type: string, format: date-time }
+
+    InviteAccepted:
+      type: object
+      additionalProperties: false
+      required: [ownerUserId, ownerName]
+      properties:
+        ownerUserId: { type: string }
+        ownerName: { type: string }
+
+    SurfaceId:
+      type: string
+      pattern: "^(instagram\\.reels|youtube\\.shorts|snapchat\\.spotlight|facebook\\.reels|app:[A-Za-z0-9._]+|site:[a-z0-9.-]+)$"
+
+    UnlockRequestCreate:
+      type: object
+      additionalProperties: false
+      required: [surfaceId, reason]
+      properties:
+        surfaceId:
+          description: Surface to unlock, or null for everything
+          oneOf:
+            - { type: "null" }
+            - { $ref: "#/components/schemas/SurfaceId" }
+        reason: { type: string, minLength: 1, maxLength: 280 }
+
+    UnlockStatus:
+      type: object
+      additionalProperties: false
+      required: [id, status]
+      properties:
+        id: { type: string }
+        status: { enum: [pending, approved, denied] }
+        until: { type: string, format: date-time, description: Present only when approved }
+
+    KeyholderRequest:
+      type: object
+      additionalProperties: false
+      required: [id, ownerName, reason, surfaceId, createdAt]
+      properties:
+        id: { type: string }
+        ownerName: { type: string }
+        reason: { type: string }
+        surfaceId:
+          oneOf:
+            - { type: "null" }
+            - { $ref: "#/components/schemas/SurfaceId" }
+        createdAt: { type: string, format: date-time }
+
+    Decision:
+      type: object
+      additionalProperties: false
+      required: [approve]
+      properties:
+        approve: { type: boolean }
+        minutes: { type: integer, minimum: 1, maximum: 240 }
+
+    FocusSession:
+      type: object
+      additionalProperties: false
+      required: [id, scheduleId, start, end, intercepts, unlocks]
+      description: Aggregate only. `end` must not be before `start`.
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        scheduleId:
+          oneOf:
+            - { type: "null" }
+            - { type: string, minLength: 1, maxLength: 100 }
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        intercepts: { type: integer, minimum: 0 }
+        unlocks: { type: integer, minimum: 0 }
+
+    WeeklySummary:
+      type: object
+      additionalProperties: false
+      required: [focusMinutes, blocks, intercepts, unlocks, days]
+      properties:
+        focusMinutes: { type: integer, minimum: 0 }
+        blocks: { type: integer, minimum: 0 }
+        intercepts: { type: integer, minimum: 0 }
+        unlocks: { type: integer, minimum: 0 }
+        days:
+          type: array
+          items: { type: string, format: date }
+
+    Entitlement:
+      type: object
+      additionalProperties: false
+      required: [tier, features]
+      properties:
+        tier: { enum: [free, plus] }
+        features:
+          type: array
+          items:
+            enum: [unlimited_schedules, desktop_sync, notes_to_cards, task_breakdown]

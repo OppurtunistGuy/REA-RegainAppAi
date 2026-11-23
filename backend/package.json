@@ -1,0 +1,30 @@
+{
+  "name": "steady-backend",
+  "version": "0.1.0",
+  "description": "Steady backend API (Phase 9)",
+  "scripts": {
+    "dev": "tsx watch --disable-warning=ExperimentalWarning src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --disable-warning=ExperimentalWarning dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@hono/node-server": "^2.1.11",
+    "hono": "^4.13.21",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1",
+    "yaml": "^2.9.1"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  }
+}
