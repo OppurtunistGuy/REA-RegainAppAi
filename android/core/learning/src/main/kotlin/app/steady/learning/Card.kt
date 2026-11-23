@@ -1,6 +1,6 @@
 package app.steady.learning
 
-import app.steady.learning.serial.InstantSerializer
+import app.steady.rules.serial.InstantSerializer
 import kotlinx.serialization.Serializable
 import java.time.Instant
 

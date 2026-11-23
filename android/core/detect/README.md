@@ -18,10 +18,6 @@ so the enforcement layer (Phase 6) can hide just that section instead of the who
 - `FallbackLadder`: picks `HIDE_SECTION`, `BLOCK_APP` or `BLOCK_DOMAIN` from mode, health and
   whether the accessibility service is on.
 
-> Note: the contract overload `FallbackLadder.level(mode: SurfaceMode, ...)` lives commented-out in
-> `FallbackLadderRules.kt` until `core:rules` is merged (TODO(phase12)). Until then there is an
-> `internal` overload taking `blockWholeApp: Boolean`.
-
 ## Running tests
 
 ```
