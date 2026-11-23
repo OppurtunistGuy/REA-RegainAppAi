@@ -173,7 +173,7 @@ private fun OwnerContent(state: PartnerUiState, vm: PartnerViewModel, context: C
     if (!holders.isNullOrEmpty()) {
         SectionLabel(stringResource(R.string.partner_holders_title))
         SteadyCard {
-            val unnamed = stringResource(R.string.partner_mode_holder)
+            val unnamed = stringResource(R.string.acct_friend_fallback)
             holders.forEach { h ->
                 val name = displayName(h.keyHolderName, unnamed)
                 LinkRow(name, h.createdAt, zone, onRemove = { vm.askRemove(h.linkId, name) })
@@ -259,7 +259,7 @@ private fun HolderContent(state: PartnerUiState, vm: PartnerViewModel, zone: Zon
         SectionLabel(stringResource(R.string.partner_owners_title))
         owners.forEach { o ->
             SteadyCard {
-                val name = displayName(o.ownerName, stringResource(R.string.partner_mode_owner))
+                val name = displayName(o.ownerName, stringResource(R.string.acct_friend_fallback))
                 LinkRow(name, o.createdAt, zone, onRemove = { vm.askRemove(o.linkId, name) }) {
                     val s = state.ownerSummaries[o.ownerUserId]
                     SectionLabel(stringResource(R.string.partner_owner_week, name))

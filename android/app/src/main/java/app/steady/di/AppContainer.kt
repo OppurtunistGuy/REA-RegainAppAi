@@ -4,6 +4,7 @@ import android.content.Context
 import app.steady.data.CardRepository
 import app.steady.data.DetectorConfigStore
 import app.steady.data.FileDetectorConfigPersistence
+import app.steady.data.GuardedPlanRepository
 import app.steady.data.DayRepository
 import app.steady.data.EntitlementRepository
 import app.steady.data.PlanRepository
@@ -78,7 +79,10 @@ class DefaultAppContainer(context: Context) : AppContainer, RemoteHost {
     override val clock: Clock = DeviceClock
     override val zone: ZoneId get() = ZoneId.systemDefault()
 
-    override val planRepo: PlanRepository by lazy { LocalPlanRepository(db.planDao(), clock) }
+    /** Every save goes through PlanGuard: no weakening the plan while a strict block runs. */
+    override val planRepo: PlanRepository by lazy {
+        GuardedPlanRepository(LocalPlanRepository(db.planDao(), clock), { rules }, clock)
+    }
     override val sessionRepo: SessionRepository by lazy { LocalSessionRepository(db.sessionDao()) { zone } }
     override val cardRepo: CardRepository by lazy { LocalCardRepository(db.cardDao()) }
     private val localUnlockRepo: UnlockRepository by lazy { LocalUnlockRepository(db.unlockDao(), clock) }

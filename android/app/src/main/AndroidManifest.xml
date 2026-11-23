@@ -9,9 +9,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Phase 6: re-arm the block alarm after reboot (BootReceiver). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission
-        android:name="android.permission.PACKAGE_USAGE_STATS"
-        tools:ignore="ProtectedPermissions" />
 
     <!-- Package visibility for the apps Steady can catch (no QUERY_ALL_PACKAGES). -->
     <queries>
@@ -34,7 +31,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.Steady"
-        tools:targetApi="35">
+        tools:targetApi="36">
 
         <activity
             android:name=".MainActivity"

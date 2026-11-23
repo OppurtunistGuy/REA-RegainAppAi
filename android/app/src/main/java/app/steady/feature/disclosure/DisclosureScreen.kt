@@ -14,7 +14,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import app.steady.Links
 import app.steady.R
+import app.steady.feature.settings.openUrl
+import app.steady.ui.components.LinkButton
 import app.steady.di.AppContainer
 import app.steady.enforcement.rememberAccessibilityEnabled
 import app.steady.nav.Navigator
@@ -45,6 +48,7 @@ fun DisclosureScreen(container: AppContainer, nav: Navigator) {
         SubText(stringResource(R.string.disclosure_intro))
 
         DisclosureCard(R.string.disclosure_reads_heading, R.string.disclosure_reads_body)
+        DisclosureCard(R.string.disclosure_acts_heading, R.string.disclosure_acts_body)
         DisclosureCard(R.string.disclosure_never_heading, R.string.disclosure_never_body)
         DisclosureCard(R.string.disclosure_device_heading, R.string.disclosure_device_body)
 
@@ -58,6 +62,7 @@ fun DisclosureScreen(container: AppContainer, nav: Navigator) {
             PrimaryButton(stringResource(R.string.disclosure_turn_on), { openAccessibilitySettings(context) })
             GhostButton(stringResource(R.string.disclosure_not_now), nav::back)
         }
+        LinkButton(stringResource(R.string.privacy_policy_link), { context.openUrl(Links.PRIVACY_POLICY) })
     }
 }
 

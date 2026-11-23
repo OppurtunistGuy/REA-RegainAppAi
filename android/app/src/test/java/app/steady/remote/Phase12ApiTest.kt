@@ -19,6 +19,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /** Client side of the "Phase 12 additions" endpoints in docs/CONTRACTS.md. */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class Phase12ApiTest {
     private lateinit var server: MockWebServer
     private val account = InMemoryAccountStore(TEST_ACCOUNT)
@@ -40,6 +41,30 @@ class Phase12ApiTest {
         }
         fail("expected ${T::class.simpleName}")
         throw IllegalStateException()
+    }
+
+    @Test fun releaseRequiresHttpsBaseUrl() {
+        assertTrue(ApiClient.isValidBaseUrl("https://api.example.com", requireHttps = true))
+        assertFalse(ApiClient.isValidBaseUrl("http://10.0.2.2:8787", requireHttps = true))
+        assertTrue(ApiClient.isValidBaseUrl("http://10.0.2.2:8787", requireHttps = false))
+        // Debug: the emulator host over http; release: an https default and https-only validation.
+        if (app.steady.BuildConfig.REQUIRE_HTTPS_API) {
+            assertTrue(AccountStore.DEFAULT_BASE_URL.startsWith("https://"))
+            assertFalse(ApiClient.isValidBaseUrl("http://10.0.2.2:8787"))
+        } else {
+            assertEquals("http://10.0.2.2:8787", AccountStore.DEFAULT_BASE_URL)
+        }
+        assertTrue(ApiClient.isValidBaseUrl(AccountStore.DEFAULT_BASE_URL))
+    }
+
+    @Test fun phase12bErrorCodesHaveFriendlyCopy() {
+        fun t(e: Throwable) = app.steady.feature.settings.accountErrorText(e)
+        assertEquals(app.steady.R.string.acct_err_otp_unavailable, t(ApiException.Server(503, "otp_not_configured")))
+        assertEquals(app.steady.R.string.acct_err_otp_unavailable, t(ApiException.Server(502, "otp_send_failed")))
+        assertEquals(app.steady.R.string.acct_err_billing_unavailable, t(ApiException.Server(503, "billing_not_configured")))
+        assertEquals(app.steady.R.string.acct_err_purchase_invalid, t(ApiException.Rejected(400, "purchase_invalid", null)))
+        assertEquals(app.steady.R.string.acct_err_purchase_in_use, t(ApiException.Conflict("purchase_in_use", null)))
+        assertEquals(app.steady.R.string.acct_err_protected_app, t(ApiException.Rejected(400, "protected_app", null)))
     }
 
     @Test fun logoutSendsGivenToken() = runTest {

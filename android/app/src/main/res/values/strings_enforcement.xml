@@ -2,7 +2,7 @@
 <!-- Phase 6: enforcement + Accessibility disclosure. Wellness wording only. -->
 <resources>
     <!-- Shown by Android in Settings > Accessibility for our service (Play AccessibilityService policy). -->
-    <string name="enforcement_a11y_description">Steady uses the AccessibilityService API to help you keep the study plan you set. During your focus blocks it looks at the screen layout of Instagram, YouTube, Snapchat, Facebook and any apps you chose to block, only to notice when Reels, Shorts, Spotlight or Facebook Reels open. It then steps back out of that section and shows a short pause screen, so messages and the rest of the app keep working. This all happens on your phone. Steady does not collect, store or share your screen contents, your messages or what you watch.</string>
+    <string name="enforcement_a11y_description">Steady uses the AccessibilityService API to help you keep the study plan you set. During your focus blocks it reads the on-screen text, view ids and content descriptions of Instagram, YouTube, Snapchat, Facebook and any apps you chose to block, only to notice when Reels, Shorts, Spotlight or Facebook Reels open. It then presses Back to leave that section (or Home for a blocked app) and shows a short pause screen, so messages and the rest of the app keep working. This all happens on your phone. Steady does not collect, store or share your screen contents, your messages or what you watch.</string>
 
     <!-- Focus notification -->
     <string name="enforcement_channel_name">Focus block</string>
@@ -18,7 +18,9 @@
     <string name="disclosure_title">How Steady uses Accessibility</string>
     <string name="disclosure_intro">To hide Reels, Shorts, Spotlight and Facebook Reels during your study blocks, Steady needs Android\'s Accessibility permission. Here is exactly what that means.</string>
     <string name="disclosure_reads_heading">What Steady looks at</string>
-    <string name="disclosure_reads_body">The screen layout of Instagram, YouTube, Snapchat, Facebook and any apps you chose to block, and only while one of your focus blocks is running. It checks which section is open (for example, whether the Reels tab is showing) so it can step back out of it and show a short pause screen.</string>
+    <string name="disclosure_reads_body">Only in Instagram, YouTube, Snapchat, Facebook and any apps you chose to block, and only while one of your focus blocks is running: the on-screen layout, including the text, view ids and content descriptions (accessibility labels) of what is shown. It uses them to tell which section is open, for example whether the Reels tab is showing.</string>
+    <string name="disclosure_acts_heading">What Steady does on your behalf</string>
+    <string name="disclosure_acts_body">When a blocked section opens, Steady presses Back to leave it; when a whole app you chose to block opens, it presses Home. Then it shows a short pause screen. It never taps, types or scrolls anything else.</string>
     <string name="disclosure_never_heading">What Steady never collects or sends</string>
     <string name="disclosure_never_body">Your screen contents, your messages, what you watch or type. None of it is stored or shared. Steady only keeps a count of when a short-video section was caught (which section and the time), to show you how your day went.</string>
     <string name="disclosure_device_heading">On your phone only</string>
@@ -29,6 +31,7 @@
     <string name="disclosure_enabled">It hides short-video sections only during your blocks. You can turn it off any time in Settings &gt; Accessibility.</string>
     <string name="disclosure_on">Focus helper is on</string>
     <string name="disclosure_done">Done</string>
+    <string name="privacy_policy_link">Privacy policy</string>
     <string name="disclosure_open_settings_again">Open Accessibility settings</string>
 
     <!-- Today banner while the accessibility service is off -->

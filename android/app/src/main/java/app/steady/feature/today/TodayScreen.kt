@@ -42,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.steady.data.StudyTask
 import app.steady.di.AppContainer
 import app.steady.R
+import app.steady.enforcement.AskNotificationPermissionOnce
 import app.steady.enforcement.rememberAccessibilityEnabled
 import app.steady.nav.Disclosure
 import app.steady.nav.Focus
@@ -72,6 +73,8 @@ fun TodayScreen(container: AppContainer, nav: Navigator) {
     }
     val state by vm.state.collectAsStateWithLifecycle()
     val accessibilityOn by rememberAccessibilityEnabled()
+    // Before the first block runs FocusService (Android 13+ notification permission, asked once).
+    AskNotificationPermissionOnce(enabled = state.autoStartOn)
     TodayContent(
         state = state,
         protectionOff = !accessibilityOn,

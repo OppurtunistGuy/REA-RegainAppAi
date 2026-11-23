@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.steady.Links
 import app.steady.R
 import app.steady.data.Tier
 import app.steady.di.AppContainer
@@ -265,6 +266,8 @@ private fun PrivacySection(signedIn: Boolean, onDelete: () -> Unit) {
         PrivacyRow(stringResource(R.string.settings_privacy_synced), stringResource(R.string.settings_privacy_synced_body))
         PrivacyRow(stringResource(R.string.settings_privacy_never), stringResource(R.string.settings_privacy_never_body))
         if (signedIn) GhostButton(stringResource(R.string.settings_delete), onDelete)
+        val context = LocalContext.current
+        LinkButton(stringResource(R.string.privacy_policy_link), { context.openUrl(Links.PRIVACY_POLICY) })
     }
 }
 

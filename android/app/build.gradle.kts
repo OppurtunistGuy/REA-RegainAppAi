@@ -7,20 +7,36 @@ plugins {
 }
 android {
     namespace = "app.steady"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "app.steady"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-    buildTypes { release { isMinifyEnabled = true; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") } }
+    buildTypes {
+        debug {
+            // Local backend (`npm run dev` in backend/) through the emulator's host alias.
+            buildConfigField("String", "DEFAULT_API_BASE_URL", "\"http://10.0.2.2:8787\"")
+            buildConfigField("boolean", "REQUIRE_HTTPS_API", "false")
+        }
+        release {
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Placeholder production host; change before release (docs/release).
+            buildConfigField("String", "DEFAULT_API_BASE_URL", "\"https://api.steady.app\"")
+            buildConfigField("boolean", "REQUIRE_HTTPS_API", "true")
+        }
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlin { jvmToolchain(21) }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/sharedAssets"))
     testOptions { unitTests.isIncludeAndroidResources = true }
 }

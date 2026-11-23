@@ -40,7 +40,7 @@
     <string name="focus_nothing_blocked">Nothing on your list yet.</string>
     <string name="focus_unlock_note_reason">Emergency unlock asks for a %1$d-second wait and a typed reason.</string>
     <string name="focus_unlock_note_wait">Emergency unlock asks for a %1$d-second wait.</string>
-    <string name="focus_unlock_note_told">%1$s gets told.</string>
+    <string name="focus_unlock_note_told">%1$s can see your request in Steady.</string>
     <string name="focus_finish">Finish block</string>
     <string name="focus_emergency_unlock">Emergency unlock</string>
     <string name="focus_done_note">Time’s up. Nice work staying with it.</string>

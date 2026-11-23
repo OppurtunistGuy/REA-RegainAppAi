@@ -1,5 +1,6 @@
 package app.steady.remote
 
+import app.steady.ApiConfig
 import app.steady.detect.DetectorCodec
 import app.steady.detect.DetectorConfig
 import app.steady.learning.FocusSession
@@ -258,7 +259,10 @@ class ApiClient(
             .callTimeout(20, TimeUnit.SECONDS)
             .build()
 
-        /** True if [url] is a usable http(s) base URL. */
-        fun isValidBaseUrl(url: String): Boolean = url.trim().toHttpUrlOrNull() != null
+        /** True if [url] is a usable base URL: https, or also http when [requireHttps] is false (debug builds). */
+        fun isValidBaseUrl(url: String, requireHttps: Boolean = ApiConfig.REQUIRE_HTTPS): Boolean {
+            val parsed = url.trim().toHttpUrlOrNull() ?: return false
+            return !requireHttps || parsed.isHttps
+        }
     }
 }

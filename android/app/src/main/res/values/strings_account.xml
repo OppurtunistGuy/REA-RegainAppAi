@@ -15,6 +15,12 @@
     <string name="acct_err_invite_gone">This code was already used or has expired. Ask for a new one.</string>
     <string name="acct_err_self_invite">That\'s your own code. Send it to the person who will hold your key.</string>
     <string name="acct_err_conflict">Already done.</string>
+    <string name="acct_err_otp_unavailable">Sign-in codes can\'t be sent right now. Try again in a few minutes.</string>
+    <string name="acct_err_billing_unavailable">Purchases can\'t be checked right now. Plus still works on this phone; try again later.</string>
+    <string name="acct_err_purchase_invalid">Google Play didn\'t confirm that purchase. Try Restore purchases.</string>
+    <string name="acct_err_purchase_in_use">This purchase is already linked to another Steady account.</string>
+    <string name="acct_err_protected_app">Steady never blocks Settings, the Play Store, the phone app or emergency apps, so that plan can\'t be saved.</string>
+    <string name="acct_friend_fallback">Your friend</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
@@ -32,9 +38,9 @@
     <string name="settings_sign_out">Sign out</string>
     <string name="settings_server">Server</string>
     <string name="settings_server_url">API base URL</string>
-    <string name="settings_server_hint">Default %1$s is your computer\'s localhost as seen from the Android emulator.</string>
+    <string name="settings_server_hint">Default: %1$s. Only change this if you run your own Steady server.</string>
     <string name="settings_server_save">Save address</string>
-    <string name="settings_server_invalid">That doesn\'t look like a web address (http:// or https://).</string>
+    <string name="settings_server_invalid">That doesn\'t look like a server address. Use one starting with https:// (debug builds also allow http://).</string>
     <string name="settings_server_saved">Saved.</string>
     <string name="settings_sync">Sync</string>
     <string name="settings_sync_signed_out">Not syncing. Your plan is only on this phone.</string>

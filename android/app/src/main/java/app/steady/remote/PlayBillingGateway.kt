@@ -28,7 +28,7 @@ import kotlin.coroutines.resume
 /**
  * Google Play Billing (billing-ktx). The library's manifest adds `com.android.vending.BILLING`.
  * Purchases are acknowledged by [RemoteEntitlementRepository] (Play refunds unacknowledged ones
- * after 3 days). There is no server-side receipt verification yet (backend has no endpoint).
+ * after 3 days); RemoteEntitlementRepository sends them to POST /v1/billing/verify when signed in.
  */
 class PlayBillingGateway(context: Context) : BillingGateway {
     private val _purchases = MutableStateFlow<List<OwnedPurchase>>(emptyList())

@@ -3,6 +3,7 @@ package app.steady.remote
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import app.steady.ApiConfig
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,8 +34,11 @@ interface AccountStore {
     fun markSessionsUploaded(ids: Collection<String>)
 
     companion object {
-        /** The Android emulator's alias for the host machine's localhost (backend `npm run dev`). */
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:8787"
+        /**
+         * Debug: the Android emulator's alias for the host machine's localhost (backend `npm run dev`).
+         * Release: the https production API. From BuildConfig via [ApiConfig].
+         */
+        val DEFAULT_BASE_URL: String get() = ApiConfig.DEFAULT_BASE_URL
         /** Uploaded-session ids kept for dedupe. The backend ignores duplicates anyway. */
         const val MAX_UPLOADED_IDS = 1000
     }
@@ -87,7 +91,10 @@ class PrefsAccountStore(
     )
 
     private val _account = MutableStateFlow(readAccount())
-    private val _baseUrl = MutableStateFlow(prefs.getString(K_BASE_URL, null) ?: AccountStore.DEFAULT_BASE_URL)
+    /** A saved URL this build may not use (http in release) falls back to the default. */
+    private val _baseUrl = MutableStateFlow(
+        prefs.getString(K_BASE_URL, null)?.takeIf(ApiClient::isValidBaseUrl) ?: AccountStore.DEFAULT_BASE_URL,
+    )
     private val _held = MutableStateFlow(readHeld())
 
     override val account: StateFlow<Account?> = _account.asStateFlow()
