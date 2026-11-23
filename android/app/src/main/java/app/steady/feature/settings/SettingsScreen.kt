@@ -37,6 +37,7 @@ import app.steady.nav.Setup
 import app.steady.remote.AccountStore
 import app.steady.remote.OwnedPurchase
 import app.steady.remote.PlusProducts
+import app.steady.remote.SignedOutReason
 import app.steady.remote.SyncStatus
 import app.steady.remote.remote
 import app.steady.ui.components.GhostButton
@@ -89,6 +90,18 @@ fun SettingsScreen(container: AppContainer, nav: Navigator) {
 
         state.error?.let { Feedback(stringResource(it), urge = true) }
         state.notice?.let { Feedback(stringResource(it), urge = false) }
+        state.signedOutReason?.let { reason ->
+            SteadyCard {
+                Feedback(
+                    stringResource(
+                        if (reason == SignedOutReason.EXPIRED) R.string.settings_signed_out_expired
+                        else R.string.settings_signed_out_rejected,
+                    ),
+                    urge = true,
+                )
+                LinkButton(stringResource(R.string.disclosure_done), vm::dismissSignedOut)
+            }
+        }
 
         AccountSection(state, vm)
         SyncSection(state.sync, signedIn = state.account != null, onSyncNow = vm::syncNow, zone = container.zone)
@@ -117,8 +130,14 @@ fun SettingsScreen(container: AppContainer, nav: Navigator) {
             onDismissRequest = { vm.askDelete(false) },
             title = { Text(stringResource(R.string.settings_delete)) },
             text = { Text(stringResource(R.string.settings_delete_body)) },
-            confirmButton = { TextButton(onClick = vm::deleteSyncedData) { Text(stringResource(R.string.settings_delete_confirm)) } },
-            dismissButton = { TextButton(onClick = { vm.askDelete(false) }) { Text(stringResource(R.string.settings_cancel)) } },
+            confirmButton = {
+                TextButton(onClick = vm::deleteSyncedData, enabled = !state.busy) {
+                    Text(stringResource(if (state.busy) R.string.settings_deleting else R.string.settings_delete_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.askDelete(false) }, enabled = !state.busy) { Text(stringResource(R.string.settings_cancel)) }
+            },
         )
     }
 }

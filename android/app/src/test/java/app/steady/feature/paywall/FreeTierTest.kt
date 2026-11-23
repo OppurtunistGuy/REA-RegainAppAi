@@ -44,7 +44,7 @@ class FreeTierTest {
             setOf("unlimited_schedules", "desktop_sync", "notes_to_cards", "task_breakdown"),
             FreeTier.plusFeatures,
         )
-        assertEquals(Features.FREE_SCHEDULE_LIMIT, FreeTier.SCHEDULE_LIMIT)
+        assertEquals(2, FreeTier.SCHEDULE_LIMIT)
         assertEquals(FreeTier.plusFeatures.sorted(), FreeTier.missingPlusFeatures(free))
         assertTrue(FreeTier.missingPlusFeatures(plus).isEmpty())
         assertTrue(FreeTier.has(plus, Features.DESKTOP_SYNC))

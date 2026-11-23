@@ -16,13 +16,17 @@ import app.steady.nav.Swap
 import app.steady.nav.Today
 
 /**
- * In-app version of the intercept sheet (debug entry from Today). Close goes back to Today,
+ * In-app version of the intercept sheet (debug entry from Today; see [InterceptViewModel] for which
+ * entry records the open). Close goes back to Today,
  * swap opens the 60-second flashcard, "just messages" goes back.
  */
 @Composable
 fun InterceptScreen(container: AppContainer, nav: Navigator, route: Intercept) {
     val vm: InterceptViewModel = viewModel(key = "intercept-${route.surfaceId}") {
-        InterceptViewModel(route.surfaceId, container.planRepo, container.sessionRepo, container.rules, container.zone, container.clock)
+        InterceptViewModel(
+            route.surfaceId, container.planRepo, container.sessionRepo, container.rules, container.zone, container.clock,
+            recordOpen = route.recordOpen,
+        )
     }
     val state by vm.state.collectAsStateWithLifecycle()
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

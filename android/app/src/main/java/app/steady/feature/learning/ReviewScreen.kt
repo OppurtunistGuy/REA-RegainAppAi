@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -50,8 +52,7 @@ import java.time.ZoneId
 import java.util.UUID
 
 /**
- * Review queue plus a simple card list with add and edit.
- * Delete is not offered: CardRepository has no delete yet (reported for Phase 12).
+ * Review queue plus a simple card list with add, edit and delete (with a confirm step).
  */
 class ReviewViewModel(
     private val cardRepo: CardRepository,
@@ -95,6 +96,16 @@ class ReviewViewModel(
     fun setFront(v: String) = session.update { s -> s.copy(editor = s.editor?.withFront(v)) }
     fun setBack(v: String) = session.update { s -> s.copy(editor = s.editor?.withBack(v)) }
 
+    fun askDelete(card: Card) = session.update { it.copy(confirmDeleteId = card.id) }
+    fun cancelDelete() = session.update { it.copy(confirmDeleteId = null) }
+
+    /** Deletes the card being confirmed; it also leaves the frozen queue so the sitting continues. */
+    fun confirmDelete() {
+        val id = session.value.confirmDeleteId ?: return
+        session.update { s -> ReviewQueue.remove(s, id).copy(confirmDeleteId = null, editor = s.editor?.takeIf { it.id != id }) }
+        viewModelScope.launch { cardRepo.delete(listOf(id)) }
+    }
+
     fun saveEdit() {
         val draft = session.value.editor ?: return
         val card = CardEditing.apply(draft, cards.value.orEmpty(), clock.instant(), idGen) ?: return
@@ -122,7 +133,17 @@ fun ReviewScreen(container: AppContainer, nav: Navigator) {
         onSave = vm::saveEdit,
         onCancel = vm::cancelEdit,
         onDone = nav::back,
+        onDelete = vm::askDelete,
     )
+    state.confirmDelete?.let { card ->
+        AlertDialog(
+            onDismissRequest = vm::cancelDelete,
+            title = { Text(stringResource(R.string.review_delete_title)) },
+            text = { Text(stringResource(R.string.review_delete_body, card.front)) },
+            confirmButton = { TextButton(onClick = vm::confirmDelete) { Text(stringResource(R.string.review_delete)) } },
+            dismissButton = { TextButton(onClick = vm::cancelDelete) { Text(stringResource(R.string.review_delete_cancel)) } },
+        )
+    }
 }
 
 @Composable
@@ -138,6 +159,7 @@ fun ReviewContent(
     onSave: () -> Unit,
     onCancel: () -> Unit,
     onDone: () -> Unit,
+    onDelete: (Card) -> Unit = {},
 ) {
     SteadyScreen {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -171,7 +193,7 @@ fun ReviewContent(
 
         if (state.cards.isNotEmpty()) {
             SectionLabel(stringResource(R.string.review_your_cards))
-            state.cards.forEach { card -> CardRow(card, state.dueLabels[card.id].orEmpty(), onEdit) }
+            state.cards.forEach { card -> CardRow(card, state.dueLabels[card.id].orEmpty(), onEdit, onDelete) }
         }
         PrimaryButton(stringResource(R.string.learning_back), onDone)
     }
@@ -192,7 +214,7 @@ private fun DoneCard(state: ReviewUiState, onCheckAgain: () -> Unit) {
 }
 
 @Composable
-private fun CardRow(card: Card, dueLabel: String, onEdit: (Card) -> Unit) {
+private fun CardRow(card: Card, dueLabel: String, onEdit: (Card) -> Unit, onDelete: (Card) -> Unit) {
     SteadyCard {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -201,6 +223,7 @@ private fun CardRow(card: Card, dueLabel: String, onEdit: (Card) -> Unit) {
                 Text(stringResource(R.string.review_card_due, dueLabel), style = MaterialTheme.typography.labelSmall, color = Steady.colors.muted)
             }
             LinkButton(stringResource(R.string.review_edit), { onEdit(card) })
+            LinkButton(stringResource(R.string.review_delete), { onDelete(card) })
         }
     }
 }

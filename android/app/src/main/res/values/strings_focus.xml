@@ -6,6 +6,9 @@
     <string name="intercept_opened_during">You opened %1$s during %2$s.</string>
     <string name="intercept_opened">You opened %1$s.</string>
     <string name="intercept_question">What did you come here for?</string>
+    <!-- Non-strict blocks: no breath gate, gentler wording. -->
+    <string name="intercept_breathe_soft">Quick check-in.</string>
+    <string name="intercept_question_soft">Still what you meant to do? Your call.</string>
     <string name="intercept_close">Close %1$s</string>
     <string name="intercept_swap">60-second swap: a flashcard</string>
     <string name="intercept_messages_plural">Just messages (%1$s stay hidden)</string>
@@ -64,6 +67,14 @@
     <string name="unlock_sending">Sending…</string>
     <string name="unlock_pending">Asked %1$s. You’ll get %2$d min if they approve.</string>
     <string name="unlock_granted">Unlocked until %1$s. Your block keeps running.</string>
+    <string name="unlock_granted_keyholder">%1$s said yes. Unlocked for %2$d min, until %3$s. Your block keeps running.</string>
+    <string name="unlock_denied">%1$s said not now. That\'s okay. Your block keeps going, and you can ask again later.</string>
+    <string name="unlock_no_answer">No answer from %1$s yet. Keep going for now; you can ask again in a bit.</string>
+    <string name="unlock_needs_sign_in">To ask %1$s, sign in first (Settings → Account). It takes a minute and only your plan and block counts are synced.</string>
+    <string name="unlock_needs_key_holder">%1$s hasn\'t accepted your invite yet. Send them the code from the Key holder screen.</string>
+    <string name="unlock_open_settings">Open Settings</string>
+    <string name="unlock_open_partner">Open Key holder</string>
+    <string name="unlock_your_key_holder">your key holder</string>
     <string name="unlock_failed">That didn’t go through. Try again in a moment.</string>
     <string name="unlock_back">Back to focus</string>
     <string name="unlock_cancel">Never mind</string>

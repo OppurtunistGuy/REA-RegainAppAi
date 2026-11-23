@@ -8,8 +8,13 @@ import kotlinx.serialization.Serializable
 @Serializable data object Setup : Route
 @Serializable data object Today : Route
 
-/** Intercept sheet shown in-app (debug entry from Today; Phase 6 also shows it as an overlay). */
-@Serializable data class Intercept(val surfaceId: String = "instagram.reels") : Route
+/**
+ * Intercept sheet shown in-app. Real opens are caught and recorded by the accessibility service,
+ * which shows the same sheet as an overlay; the in-app route only exists for Today's
+ * "Try opening Instagram" button. [recordOpen] is true only for that debug entry, so a real open is
+ * never counted twice.
+ */
+@Serializable data class Intercept(val surfaceId: String = "instagram.reels", val recordOpen: Boolean = false) : Route
 
 /** 60-second flashcard swap. */
 @Serializable data object Swap : Route

@@ -14,7 +14,7 @@ fun accountErrorText(e: Throwable): Int = when (e) {
     is ApiException.Network -> R.string.acct_err_network
     is ApiException.Unauthorized -> if (e.code == "invalid_code") R.string.acct_err_code else R.string.acct_err_signed_out
     is ApiException.NotFound -> R.string.acct_err_not_found
-    is ApiException.Conflict -> R.string.acct_err_conflict
+    is ApiException.Conflict -> if (e.isKeyHolderLimit) R.string.partner_err_keyholder_limit else R.string.acct_err_conflict
     is ApiException.Server -> R.string.acct_err_server
     is ApiException.Rejected -> when {
         e.status == 429 -> R.string.acct_err_rate_limited

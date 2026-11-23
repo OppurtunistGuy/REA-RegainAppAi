@@ -63,6 +63,11 @@ data class InterceptUiState(
     val scheduleLabel: String,
     val opensToday: Int,
     val opensBaseline: Int,
+    /**
+     * Phase 12: false when the running block is not strict. Then every exit is open at once (no breath
+     * gate) and the copy is softer.
+     */
+    val strict: Boolean = true,
 )
 
 /**
@@ -92,8 +97,10 @@ internal fun InterceptSheet(
 ) {
     val c = Steady.colors
     val copy = remember(state.surfaceId) { InterceptCopy.surface(state.surfaceId) }
-    var elapsedMs by remember(state.surfaceId) { mutableLongStateOf(startElapsedMs) }
-    LaunchedEffect(state.surfaceId) {
+    // Non-strict blocks skip the breath: the sheet is a gentle reminder, not a gate.
+    val initialElapsed = if (state.strict) startElapsedMs else BreathGate.BREATH_SECONDS * 1000L
+    var elapsedMs by remember(state.surfaceId, state.strict) { mutableLongStateOf(initialElapsed) }
+    LaunchedEffect(state.surfaceId, state.strict) {
         while (!BreathGate.softExitsEnabled(elapsedMs)) {
             delay(TICK_MS)
             elapsedMs += TICK_MS
@@ -118,7 +125,7 @@ internal fun InterceptSheet(
                 BreathDot(secondsLeft)
                 Column(Modifier.weight(1f)) {
                     Text(
-                        stringResource(R.string.intercept_breathe),
+                        stringResource(if (state.strict) R.string.intercept_breathe else R.string.intercept_breathe_soft),
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = c.ink,
                     )
@@ -130,7 +137,7 @@ internal fun InterceptSheet(
                 }
             }
             Text(
-                stringResource(R.string.intercept_question),
+                stringResource(if (state.strict) R.string.intercept_question else R.string.intercept_question_soft),
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
                 color = c.ink,
@@ -227,6 +234,14 @@ private fun CloseAppButton(text: String, onClick: () -> Unit, enabled: Boolean) 
 }
 
 // ---- Previews ----
+
+@Preview(name = "Intercept · non-strict · light", showBackground = true, heightDp = 640)
+@Composable
+private fun InterceptSoftPreview() {
+    SteadyTheme(darkTheme = false) {
+        InterceptSheet(InterceptUiState("youtube.shorts", "Evening", 2, 6, strict = false), {}, {}, {}, startElapsedMs = 0L)
+    }
+}
 
 private val previewState = InterceptUiState("instagram.reels", "Coaching", opensToday = 3, opensBaseline = 11)
 

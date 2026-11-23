@@ -5,17 +5,21 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -34,6 +38,7 @@ import app.steady.R
 import app.steady.di.AppContainer
 import app.steady.feature.settings.Feedback
 import app.steady.nav.Navigator
+import app.steady.nav.Paywall
 import app.steady.nav.Settings
 import app.steady.remote.KeyHolderRequest
 import app.steady.remote.remote
@@ -96,6 +101,8 @@ fun PartnerScreen(container: AppContainer, nav: Navigator) {
             }
         } else {
             state.error?.let { Feedback(stringResource(it), urge = true) }
+            if (state.showPlusLink) LinkButton(stringResource(R.string.settings_see_plus), { nav.go(Paywall) })
+            state.notice?.let { Feedback(stringResource(it), urge = false) }
             when (state.mode) {
                 PartnerMode.OWNER -> OwnerContent(state, vm, context, container.zone)
                 PartnerMode.HOLDER -> HolderContent(state, vm, container.zone)
@@ -105,7 +112,45 @@ fun PartnerScreen(container: AppContainer, nav: Navigator) {
         NeverSharedCard()
         GhostButton(stringResource(R.string.acct_back), nav::back)
     }
+
+    state.confirmRemove?.let { pending ->
+        AlertDialog(
+            onDismissRequest = vm::cancelRemove,
+            title = { Text(stringResource(R.string.partner_remove_confirm_title, pending.name)) },
+            text = {
+                Text(
+                    stringResource(
+                        if (pending.mode == PartnerMode.OWNER) R.string.partner_remove_holder_body else R.string.partner_remove_owner_body,
+                        pending.name,
+                    ),
+                )
+            },
+            confirmButton = { TextButton(onClick = vm::confirmRemove) { Text(stringResource(R.string.partner_remove)) } },
+            dismissButton = { TextButton(onClick = vm::cancelRemove) { Text(stringResource(R.string.settings_cancel)) } },
+        )
+    }
 }
+
+/** One linked person with a Remove action. */
+@Composable
+private fun LinkRow(name: String, createdAt: String, zone: ZoneId, onRemove: () -> Unit, extra: @Composable () -> Unit = {}) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(name, style = MaterialTheme.typography.bodyLarge, color = Steady.colors.ink)
+            runCatching {
+                DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(zone).format(Instant.parse(createdAt))
+            }.getOrNull()?.let { SubText(stringResource(R.string.partner_since, it)) }
+            extra()
+        }
+        LinkButton(stringResource(R.string.partner_remove), onRemove)
+    }
+}
+
+private fun displayName(name: String, fallback: String): String = name.trim().ifEmpty { fallback }
 
 @Composable
 private fun OwnerContent(state: PartnerUiState, vm: PartnerViewModel, context: Context, zone: ZoneId) {
@@ -121,6 +166,18 @@ private fun OwnerContent(state: PartnerUiState, vm: PartnerViewModel, context: C
         } else {
             InviteCode(invite.code, invite.expiresAt, zone, context)
             LinkButton(stringResource(R.string.partner_invite_new), vm::createInvite)
+        }
+    }
+
+    val holders = state.holders
+    if (!holders.isNullOrEmpty()) {
+        SectionLabel(stringResource(R.string.partner_holders_title))
+        SteadyCard {
+            val unnamed = stringResource(R.string.partner_mode_holder)
+            holders.forEach { h ->
+                val name = displayName(h.keyHolderName, unnamed)
+                LinkRow(name, h.createdAt, zone, onRemove = { vm.askRemove(h.linkId, name) })
+            }
         }
     }
 
@@ -189,9 +246,32 @@ private fun HolderContent(state: PartnerUiState, vm: PartnerViewModel, zone: Zon
         )
         PrimaryButton(stringResource(R.string.partner_accept), vm::accept, enabled = state.canAccept)
         state.acceptedName?.let { Feedback(stringResource(R.string.partner_accepted, it), urge = false) }
-        if (state.heldKeys.isNotEmpty()) {
+        val owners = state.owners
+        if (owners == null && state.heldKeys.isNotEmpty()) {
+            // Not loaded from the server yet: the names remembered on this phone.
             SectionLabel(stringResource(R.string.partner_holding))
             state.heldKeys.forEach { Text(it.ownerName, style = MaterialTheme.typography.bodyLarge, color = Steady.colors.ink) }
+        }
+    }
+
+    val owners = state.owners
+    if (!owners.isNullOrEmpty()) {
+        SectionLabel(stringResource(R.string.partner_owners_title))
+        owners.forEach { o ->
+            SteadyCard {
+                val name = displayName(o.ownerName, stringResource(R.string.partner_mode_owner))
+                LinkRow(name, o.createdAt, zone, onRemove = { vm.askRemove(o.linkId, name) }) {
+                    val s = state.ownerSummaries[o.ownerUserId]
+                    SectionLabel(stringResource(R.string.partner_owner_week, name))
+                    if (s == null || s.blocks == 0) {
+                        SubText(stringResource(R.string.partner_owner_summary_none))
+                    } else {
+                        Text(pluralStringResource(R.plurals.partner_summary_blocks, s.blocks, name, s.blocks),
+                            style = MaterialTheme.typography.titleMedium, color = Steady.colors.ink)
+                        SubText(stringResource(R.string.partner_summary_sub, s.focusMinutes))
+                    }
+                }
+            }
         }
     }
 
@@ -202,7 +282,6 @@ private fun HolderContent(state: PartnerUiState, vm: PartnerViewModel, zone: Zon
         state.requests.forEach { RequestCard(it, deciding = it.id in state.deciding, zone = zone, onDecide = vm::decide) }
     }
     GhostButton(stringResource(R.string.partner_refresh), vm::refresh, enabled = !state.busy)
-    SubText(stringResource(R.string.partner_holder_summary_todo))
 }
 
 @Composable

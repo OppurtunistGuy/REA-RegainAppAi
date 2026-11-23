@@ -2,6 +2,7 @@ package app.steady.remote
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,9 +17,8 @@ data class HeldKey(val ownerUserId: String, val ownerName: String)
 /**
  * Account, API base URL and small sync bookkeeping. Nothing here is screen content.
  *
- * TODO(security): the bearer token sits in a private (MODE_PRIVATE) SharedPreferences file that is
- * excluded from backup (allowBackup=false + data_extraction_rules). Wrap it with an Android Keystore
- * key (AES/GCM) before release; the security-crypto library was deliberately not added.
+ * The bearer token is encrypted with an Android Keystore AES/GCM key ([KeystoreTokenCipher]) before it
+ * is written to a private SharedPreferences file that is also excluded from backup.
  */
 interface AccountStore {
     val account: StateFlow<Account?>
@@ -72,10 +72,19 @@ class InMemoryAccountStore(
     }
 }
 
-/** SharedPreferences-backed store (file `steady_account`, private, not backed up). */
-class PrefsAccountStore(context: Context) : AccountStore {
-    private val prefs: SharedPreferences =
-        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+/**
+ * SharedPreferences-backed store (file `steady_account`, private, not backed up). The token is stored
+ * only as [TokenCipher] ciphertext; a plain token left by an older build is encrypted on first read.
+ */
+class PrefsAccountStore(
+    private val prefs: SharedPreferences,
+    private val cipher: TokenCipher,
+    private val log: (String, Throwable?) -> Unit = { msg, e -> Log.w(TAG, msg, e) },
+) : AccountStore {
+    constructor(context: Context) : this(
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE),
+        KeystoreTokenCipher(),
+    )
 
     private val _account = MutableStateFlow(readAccount())
     private val _baseUrl = MutableStateFlow(prefs.getString(K_BASE_URL, null) ?: AccountStore.DEFAULT_BASE_URL)
@@ -86,9 +95,37 @@ class PrefsAccountStore(context: Context) : AccountStore {
     override val heldKeys: StateFlow<List<HeldKey>> = _held.asStateFlow()
 
     private fun readAccount(): Account? {
-        val token = prefs.getString(K_TOKEN, null) ?: return null
         val userId = prefs.getString(K_USER, null) ?: return null
+        val token = readToken() ?: return null
         return Account(userId, token, prefs.getString(K_NAME, null), prefs.getString(K_CONTACT, null))
+    }
+
+    /** Decrypts the stored token, migrating a legacy plain one. Unreadable → forget the account. */
+    private fun readToken(): String? {
+        prefs.getString(K_TOKEN_ENC, null)?.let { sealed ->
+            val token = runCatching { cipher.decrypt(sealed) }.getOrNull()
+            if (token == null) {
+                log("Stored token could not be decrypted; signing out", null)
+                clearAccountKeys()
+            }
+            return token
+        }
+        val legacy = prefs.getString(K_TOKEN, null) ?: return null
+        try {
+            val sealed = cipher.encrypt(legacy)
+            prefs.edit {
+                putString(K_TOKEN_ENC, sealed)
+                remove(K_TOKEN)
+            }
+        } catch (e: Exception) {
+            log("Could not encrypt the legacy token; keeping it for this run only", e)
+            prefs.edit { remove(K_TOKEN) }
+        }
+        return legacy
+    }
+
+    private fun clearAccountKeys() {
+        prefs.edit { listOf(K_TOKEN, K_TOKEN_ENC, K_USER, K_NAME, K_CONTACT, K_HELD, K_UPLOADED).forEach { remove(it) } }
     }
 
     private fun readHeld(): List<HeldKey> =
@@ -103,8 +140,15 @@ class PrefsAccountStore(context: Context) : AccountStore {
     }
 
     override fun signIn(account: Account) {
+        val sealed = try {
+            cipher.encrypt(account.token)
+        } catch (e: Exception) {
+            log("Could not encrypt the token; signed in for this run only", e)
+            null
+        }
         prefs.edit {
-            putString(K_TOKEN, account.token)
+            remove(K_TOKEN)
+            if (sealed != null) putString(K_TOKEN_ENC, sealed) else remove(K_TOKEN_ENC)
             putString(K_USER, account.userId)
             putString(K_NAME, account.name)
             putString(K_CONTACT, account.contact)
@@ -113,7 +157,7 @@ class PrefsAccountStore(context: Context) : AccountStore {
     }
 
     override fun signOut() {
-        prefs.edit { listOf(K_TOKEN, K_USER, K_NAME, K_CONTACT, K_HELD, K_UPLOADED).forEach { remove(it) } }
+        clearAccountKeys()
         _account.value = null
         _held.value = emptyList()
     }
@@ -137,8 +181,11 @@ class PrefsAccountStore(context: Context) : AccountStore {
         prefs.getString(K_UPLOADED, null)?.split(',')?.filter { it.isNotEmpty() }.orEmpty()
 
     private companion object {
+        const val TAG = "SteadyAccount"
         const val FILE = "steady_account"
+        /** Legacy plain token (Phase 11 builds); migrated to [K_TOKEN_ENC] and removed. */
         const val K_TOKEN = "token"
+        const val K_TOKEN_ENC = "token_enc"
         const val K_USER = "user_id"
         const val K_NAME = "name"
         const val K_CONTACT = "contact"

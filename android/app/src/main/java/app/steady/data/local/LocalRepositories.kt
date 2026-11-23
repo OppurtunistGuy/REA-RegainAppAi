@@ -47,7 +47,10 @@ class LocalPlanRepository(private val dao: PlanDao, private val clock: Clock) : 
     }
 }
 
-class LocalSessionRepository(private val dao: SessionDao, private val zone: ZoneId) : SessionRepository {
+/** [zone] is read per query, so day boundaries follow a device time-zone change. */
+class LocalSessionRepository(private val dao: SessionDao, private val zone: () -> ZoneId) : SessionRepository {
+    constructor(dao: SessionDao, zone: ZoneId) : this(dao, { zone })
+
     override val sessions: Flow<List<FocusSession>> = dao.observeAll().map { list -> list.map { it.toModel() } }
 
     override suspend fun add(s: FocusSession) = dao.upsert(s.toEntity())
@@ -56,16 +59,30 @@ class LocalSessionRepository(private val dao: SessionDao, private val zone: Zone
         dao.insertIntercept(InterceptEventEntity(surfaceId = surfaceId, atMs = at.toEpochMilli()))
 
     override fun interceptsOn(date: LocalDate): Flow<Int> {
-        val from = date.atStartOfDay(zone).toInstant().toEpochMilli()
-        val until = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val z = zone()
+        val from = date.atStartOfDay(z).toInstant().toEpochMilli()
+        val until = date.plusDays(1).atStartOfDay(z).toInstant().toEpochMilli()
         return dao.countIntercepts(from, until)
+    }
+
+    override fun interceptsBySurface(from: LocalDate, toExclusive: LocalDate): Flow<Map<String, Int>> {
+        val z = zone()
+        val fromMs = from.atStartOfDay(z).toInstant().toEpochMilli()
+        val untilMs = toExclusive.atStartOfDay(z).toInstant().toEpochMilli()
+        return dao.countInterceptsBySurface(fromMs, untilMs).map { rows -> rows.associate { it.surfaceId to it.count } }
     }
 }
 
 class LocalCardRepository(private val dao: CardDao) : CardRepository {
     override val cards: Flow<List<Card>> = dao.observeAll().map { list -> list.map { it.toModel() } }
     override suspend fun upsert(cards: List<Card>) = dao.upsert(cards.map { it.toEntity() })
+    override suspend fun delete(ids: Collection<String>) {
+        // Chunked: SQLite caps bound parameters per statement.
+        ids.distinct().chunked(DELETE_CHUNK).forEach { dao.delete(it) }
+    }
 }
+
+private const val DELETE_CHUNK = 500
 
 class LocalUnlockRepository(
     private val dao: UnlockDao,

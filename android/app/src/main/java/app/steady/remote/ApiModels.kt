@@ -74,3 +74,25 @@ data class WeeklySummary(
 )
 
 @Serializable data class ServerEntitlement(val tier: String, val features: List<String> = emptyList())
+
+// ---- Phase 12 additions ----
+
+@Serializable internal data class BillingVerifyBody(val productId: String, val purchaseToken: String)
+
+/** `GET /v1/keyholder/links` (owner view): someone who holds my key. */
+@Serializable
+data class KeyHolderLink(
+    val linkId: String,
+    val keyHolderUserId: String,
+    val keyHolderName: String = "",
+    val createdAt: String = "",
+)
+
+/** `GET /v1/keyholder/owners` (key-holder view): someone whose key I hold. */
+@Serializable
+data class OwnerLink(
+    val linkId: String,
+    val ownerUserId: String,
+    val ownerName: String = "",
+    val createdAt: String = "",
+)

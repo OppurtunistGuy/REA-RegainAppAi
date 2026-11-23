@@ -30,7 +30,17 @@ interface SessionDao {
     /** Count of intercepts in [fromMs, untilMs). */
     @Query("SELECT COUNT(*) FROM intercept_events WHERE atMs >= :fromMs AND atMs < :untilMs")
     fun countIntercepts(fromMs: Long, untilMs: Long): Flow<Int>
+
+    /** Intercepts per surface in [fromMs, untilMs). */
+    @Query(
+        "SELECT surfaceId, COUNT(*) AS count FROM intercept_events " +
+            "WHERE atMs >= :fromMs AND atMs < :untilMs GROUP BY surfaceId",
+    )
+    fun countInterceptsBySurface(fromMs: Long, untilMs: Long): Flow<List<SurfaceCount>>
 }
+
+/** Row of [SessionDao.countInterceptsBySurface]. */
+data class SurfaceCount(val surfaceId: String, val count: Int)
 
 @Dao
 interface CardDao {
@@ -39,6 +49,9 @@ interface CardDao {
 
     @Upsert
     suspend fun upsert(cards: List<CardEntity>)
+
+    @Query("DELETE FROM cards WHERE id IN (:ids)")
+    suspend fun delete(ids: List<String>)
 }
 
 @Dao

@@ -30,4 +30,9 @@
     <string name="disclosure_on">Focus helper is on</string>
     <string name="disclosure_done">Done</string>
     <string name="disclosure_open_settings_again">Open Accessibility settings</string>
+
+    <!-- Today banner while the accessibility service is off -->
+    <string name="today_protection_off_title">Reels and Shorts aren\'t hidden yet</string>
+    <string name="today_protection_off_body">Your blocks are scheduled, but Steady\'s focus helper is off, so nothing gets hidden during them.</string>
+    <string name="today_protection_off_action">See how it works</string>
 </resources>

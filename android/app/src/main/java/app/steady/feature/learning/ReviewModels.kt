@@ -14,6 +14,8 @@ data class ReviewSession(
     val revealed: Boolean = false,
     /** Card being added or edited in the list below; null = no editor open. */
     val editor: CardDraft? = null,
+    /** Card waiting for "Delete this card?" confirmation. */
+    val confirmDeleteId: String? = null,
 )
 
 object ReviewQueue {
@@ -32,6 +34,15 @@ object ReviewQueue {
     }
 
     fun currentId(s: ReviewSession): String? = s.queueIds?.getOrNull(s.position)
+
+    /** Drops [id] from the frozen queue, keeping the user on the same next card. */
+    fun remove(s: ReviewSession, id: String): ReviewSession {
+        val q = s.queueIds ?: return s
+        val index = q.indexOf(id)
+        if (index < 0) return s
+        val position = if (index < s.position) s.position - 1 else s.position
+        return s.copy(queueIds = q - id, position = position, revealed = s.revealed && index != s.position)
+    }
 }
 
 data class ReviewUiState(
@@ -46,6 +57,7 @@ data class ReviewUiState(
     val cards: List<Card> = emptyList(),
     val dueLabels: Map<String, String> = emptyMap(),
     val editor: CardDraft? = null,
+    val confirmDelete: Card? = null,
 ) {
     val done: Boolean get() = !loading && current == null
     val hadQueue: Boolean get() = total > 0
@@ -72,6 +84,7 @@ object ReviewStateBuilder {
             cards = cards.sortedByDescending { it.createdAt },
             dueLabels = cards.associate { it.id to DueLabels.relative(it.state.due, now, zone) },
             editor = s.editor,
+            confirmDelete = s.confirmDeleteId?.let { byId[it] },
         )
     }
 }

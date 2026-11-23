@@ -60,9 +60,12 @@
     <string name="settings_privacy_never">Never sent</string>
     <string name="settings_privacy_never_body">Screen contents, messages, browsing or watch history, which videos you opened, flashcards, tasks, or minute-by-minute usage.</string>
     <string name="settings_delete">Delete my synced data</string>
-    <string name="settings_delete_body">Server-side deletion is coming soon. For now this signs you out and removes the sign-in token from this phone; your plan stays here.</string>
-    <string name="settings_delete_confirm">Sign out and forget token</string>
-    <string name="settings_delete_done">Signed out. Nothing is synced from this phone now.</string>
+    <string name="settings_delete_body">This erases your plan, focus sessions, unlock requests, key-holder links and subscription record from Steady\'s server, and signs you out. Everything on this phone stays as it is. This can\'t be undone.</string>
+    <string name="settings_delete_confirm">Delete from server</string>
+    <string name="settings_delete_done">Your synced data is gone from the server and you\'re signed out. Your plan and history are still on this phone.</string>
+    <string name="settings_deleting">Deleting…</string>
+    <string name="settings_signed_out_expired">You were signed out because the account wasn\'t used for a while. Sign in again to keep syncing.</string>
+    <string name="settings_signed_out_rejected">You were signed out (the sign-in is no longer valid). Sign in again to keep syncing.</string>
     <string name="settings_accessibility">Accessibility</string>
     <string name="settings_accessibility_body">See exactly what the focus helper does and why.</string>
     <string name="settings_accessibility_open">Accessibility disclosure</string>
@@ -108,7 +111,17 @@
     <string name="partner_approve">Approve 15 min</string>
     <string name="partner_deny">Not now</string>
     <string name="partner_refresh">Refresh</string>
-    <string name="partner_holder_summary_todo">Weekly summaries of the people you hold keys for are coming soon.</string>
+    <string name="partner_err_keyholder_limit">This person already has a key holder. On the free plan each person can have one. They can remove the old one under Key holder, or switch to Steady Plus for more.</string>
+    <string name="partner_holders_title">Who holds your key</string>
+    <string name="partner_owners_title">Whose key you hold</string>
+    <string name="partner_since">Since %1$s</string>
+    <string name="partner_remove">Remove</string>
+    <string name="partner_remove_confirm_title">Remove %1$s?</string>
+    <string name="partner_remove_holder_body">%1$s will stop getting your unlock requests and weekly summary. You can invite someone again any time.</string>
+    <string name="partner_remove_owner_body">You will stop getting %1$s\'s unlock requests and weekly summary.</string>
+    <string name="partner_removed">Removed.</string>
+    <string name="partner_owner_week">%1$s this week</string>
+    <string name="partner_owner_summary_none">No study blocks this week yet.</string>
     <string name="partner_never">Never shared</string>
     <string name="partner_never_body">What was watched, messages, screen contents, or minute-by-minute usage. Detection runs on the phone only.</string>
 

@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.steady.di.AppContainer
+import app.steady.enforcement.rememberAccessibilityEnabled
+import app.steady.nav.Disclosure
 import app.steady.nav.Navigator
 import app.steady.nav.Today
 import app.steady.rules.Relation
@@ -55,11 +57,15 @@ import java.time.LocalTime
 fun SetupScreen(container: AppContainer, nav: Navigator) {
     val vm: SetupViewModel = viewModel { SetupViewModel(container.planRepo, container.entitlements) }
     val state by vm.state.collectAsStateWithLifecycle()
+    val accessibilityOn by rememberAccessibilityEnabled()
 
+    // The saved plan reaches BlockScheduler through SteadyApp's plan collector (alarm + FocusService).
     LaunchedEffect(state.saved) {
         if (state.saved) {
             vm.consumeSaved()
             nav.resetTo(Today)
+            // Without the accessibility service nothing gets hidden: explain it right away.
+            if (!accessibilityOn) nav.go(Disclosure)
         }
     }
 

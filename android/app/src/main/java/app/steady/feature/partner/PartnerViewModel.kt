@@ -3,11 +3,15 @@ package app.steady.feature.partner
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.steady.R
 import app.steady.data.PlanRepository
 import app.steady.feature.settings.accountErrorText
+import app.steady.remote.ApiException
 import app.steady.remote.HeldKey
 import app.steady.remote.Invite
+import app.steady.remote.KeyHolderLink
 import app.steady.remote.KeyHolderRequest
+import app.steady.remote.OwnerLink
 import app.steady.remote.RemoteModule
 import app.steady.remote.WeeklySummary
 import kotlinx.coroutines.CancellationException
@@ -37,9 +41,23 @@ data class PartnerUiState(
     val busy: Boolean = false,
     @StringRes val error: Int? = null,
     val acceptedName: String? = null,
+    /** Owner view (`GET /v1/keyholder/links`); null until loaded. */
+    val holders: List<KeyHolderLink>? = null,
+    /** Key-holder view (`GET /v1/keyholder/owners`); null until loaded. */
+    val owners: List<OwnerLink>? = null,
+    /** Weekly summary per owner user id (`GET /v1/keyholder/summary`). */
+    val ownerSummaries: Map<String, WeeklySummary> = emptyMap(),
+    /** Link waiting for "Remove?" confirmation. */
+    val confirmRemove: PendingRemoval? = null,
+    @StringRes val notice: Int? = null,
 ) {
     val canAccept: Boolean get() = !busy && codeInput.trim().length == 6
+    /** 409 `keyholder_limit`: offer the Paywall next to the explanation. */
+    val showPlusLink: Boolean get() = error == R.string.partner_err_keyholder_limit
 }
+
+/** A link the user tapped Remove on. [name] is the other person. */
+data class PendingRemoval(val linkId: String, val name: String, val mode: PartnerMode)
 
 /** Monday of the week containing [today] (ISO weeks, as the backend's weekly summary expects). */
 fun weekStartOf(today: LocalDate): LocalDate = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -79,7 +97,30 @@ class PartnerViewModel(
         val r = remote.api.acceptInvite(_state.value.codeInput)
         remote.account.addHeldKey(HeldKey(r.ownerUserId, r.ownerName))
         _state.update { it.copy(codeInput = "", acceptedName = r.ownerName) }
-        loadRequests()
+        loadHolderView()
+    }
+
+    fun askRemove(linkId: String, name: String) =
+        _state.update { it.copy(confirmRemove = PendingRemoval(linkId, name, it.mode), notice = null) }
+
+    fun cancelRemove() = _state.update { it.copy(confirmRemove = null) }
+
+    /** `DELETE /v1/keyholder/links/{id}` from either side, then reload that side's list. */
+    fun confirmRemove() {
+        val pending = _state.value.confirmRemove ?: return
+        _state.update { it.copy(confirmRemove = null) }
+        action {
+            try {
+                remote.api.removeKeyHolderLink(pending.linkId)
+            } catch (e: ApiException.NotFound) {
+                // Already removed (maybe by the other person): same result.
+            }
+            when (pending.mode) {
+                PartnerMode.OWNER -> loadOwnerView()
+                PartnerMode.HOLDER -> loadHolderView()
+            }
+            _state.update { it.copy(notice = R.string.partner_removed) }
+        }
     }
 
     fun decide(id: String, approve: Boolean) {
@@ -104,12 +145,35 @@ class PartnerViewModel(
         if (!_state.value.signedIn) return
         action {
             when (_state.value.mode) {
-                PartnerMode.OWNER -> _state.update {
-                    it.copy(summary = remote.api.weeklySummary(weekStartOf(today()), zone))
-                }
-                PartnerMode.HOLDER -> loadRequests()
+                PartnerMode.OWNER -> loadOwnerView()
+                PartnerMode.HOLDER -> loadHolderView()
             }
         }
+    }
+
+    private suspend fun loadOwnerView() {
+        val holders = remote.api.keyHolderLinks()
+        _state.update { it.copy(holders = holders) }
+        val summary = remote.api.weeklySummary(weekStartOf(today()), zone)
+        _state.update { it.copy(summary = summary) }
+    }
+
+    /** Owners whose key I hold, their weekly summaries, and their pending unlock requests. */
+    private suspend fun loadHolderView() {
+        val owners = remote.api.keyHolderOwners()
+        _state.update { s -> s.copy(owners = owners, ownerSummaries = s.ownerSummaries.filterKeys { id -> owners.any { it.ownerUserId == id } }) }
+        val week = weekStartOf(today())
+        for (o in owners) {
+            val summary = try {
+                remote.api.ownerSummary(o.ownerUserId, week, zone)
+            } catch (e: ApiException.NotFound) {
+                null // link removed meanwhile
+            }
+            _state.update { s ->
+                s.copy(ownerSummaries = if (summary == null) s.ownerSummaries - o.ownerUserId else s.ownerSummaries + (o.ownerUserId to summary))
+            }
+        }
+        loadRequests()
     }
 
     private suspend fun loadRequests() {
@@ -118,7 +182,7 @@ class PartnerViewModel(
     }
 
     private fun action(block: suspend () -> Unit) {
-        _state.update { it.copy(busy = true, error = null) }
+        _state.update { it.copy(busy = true, error = null, notice = null) }
         viewModelScope.launch {
             try {
                 block()

@@ -50,6 +50,11 @@ class FakeCardRepository(initial: List<Card> = emptyList()) : CardRepository {
             old.map { byId[it.id] ?: it } + cards.filter { c -> old.none { it.id == c.id } }
         }
     }
+    val deletes = mutableListOf<Collection<String>>()
+    override suspend fun delete(ids: Collection<String>) {
+        deletes += ids
+        state.update { old -> old.filterNot { it.id in ids } }
+    }
 }
 
 class FakeSessionRepository(
@@ -64,4 +69,9 @@ class FakeSessionRepository(
     override suspend fun recordIntercept(surfaceId: String, at: Instant) = interceptState.update { it + (surfaceId to at) }
     override fun interceptsOn(date: LocalDate): Flow<Int> =
         interceptState.map { l -> l.count { it.second.atZone(zone).toLocalDate() == date } }
+    override fun interceptsBySurface(from: LocalDate, toExclusive: LocalDate): Flow<Map<String, Int>> =
+        interceptState.map { l ->
+            l.filter { val d = it.second.atZone(zone).toLocalDate(); !d.isBefore(from) && d.isBefore(toExclusive) }
+                .groupingBy { it.first }.eachCount()
+        }
 }

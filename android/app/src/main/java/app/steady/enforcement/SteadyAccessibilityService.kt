@@ -11,8 +11,10 @@ import app.steady.detect.DetectorConfig
 import app.steady.detect.DetectorHealth
 import app.steady.detect.SurfaceDetector
 import app.steady.di.AppContainer
+import app.steady.feature.intercept.InterceptStateBuilder
 import app.steady.feature.intercept.InterceptUiState
 import app.steady.rules.Plan
+import app.steady.rules.RulesEngine
 import app.steady.rules.UnlockGrant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +22,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -38,6 +39,7 @@ class SteadyAccessibilityService : AccessibilityService() {
     private var container: AppContainer? = null
     private var overlay: InterceptOverlay? = null
     private var decider: EnforcementDecider? = null
+    private var deciderRules: RulesEngine? = null
     private val health = DetectorHealth()
 
     // Latest values, kept in memory by collectors tied to [scope].
@@ -53,7 +55,6 @@ class SteadyAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         val c = appContainer
         container = c
-        decider = EnforcementDecider(c.rules)
         overlay = InterceptOverlay(this)
         scope.launch {
             c.planRepo.plan.collect {
@@ -85,9 +86,17 @@ class SteadyAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** Rebuilt when `container.rules` changes (a new RulesEngine after a time-zone change). */
+    private fun currentDecider(c: AppContainer): EnforcementDecider {
+        val rules = c.rules
+        decider?.takeIf { deciderRules === rules }?.let { return it }
+        deciderRules = rules
+        return EnforcementDecider(rules).also { decider = it }
+    }
+
     private suspend fun evaluate() {
         val c = container ?: return
-        val d = decider ?: return
+        val d = currentDecider(c)
         val ov = overlay ?: return
         if (ov.isShowing) return
         val cfg = currentConfig(c)
@@ -128,19 +137,16 @@ class SteadyAccessibilityService : AccessibilityService() {
             EnforcementAction.HOME_AND_INTERCEPT -> performGlobalAction(GLOBAL_ACTION_HOME)
         }
         val today = now.atZone(c.zone).toLocalDate()
-        val opensToday = runCatching {
-            c.sessionRepo.recordIntercept(surfaceId, now)
-            c.sessionRepo.interceptsOn(today).first()
+        val label = scheduleLabel(plan, decision.scheduleId, getString(R.string.enforcement_block_fallback_label))
+        // The single place a real open is recorded (the in-app Intercept route records only its debug entry).
+        runCatching { c.sessionRepo.recordIntercept(surfaceId, now) }
+            .onFailure { e -> Log.w(TAG, "Could not record intercept", e) }
+        val state = runCatching {
+            InterceptStateBuilder.forOverlay(surfaceId, label, decision.strict, c.sessionRepo, today)
         }.getOrElse { e ->
-            Log.w(TAG, "Could not record intercept", e)
-            0
+            Log.w(TAG, "Could not count intercepts", e)
+            InterceptUiState(surfaceId, label, opensToday = 0, opensBaseline = 0, strict = decision.strict)
         }
-        val state = InterceptUiState(
-            surfaceId = surfaceId,
-            scheduleLabel = scheduleLabel(plan, decision.scheduleId, getString(R.string.enforcement_block_fallback_label)),
-            opensToday = opensToday,
-            opensBaseline = OPENS_BASELINE_PLACEHOLDER,
-        )
         val ov = overlay ?: return
         ov.show(
             state = state,
@@ -158,7 +164,7 @@ class SteadyAccessibilityService : AccessibilityService() {
         )
     }
 
-    /** Hot reload: picks up a newer `container.detectorConfig` on the next event. */
+    /** Hot reload: picks up a newer `container.detectorConfig` (DetectorConfigStore) on the next event. */
     private fun currentConfig(c: AppContainer): DetectorConfig {
         val latest = c.detectorConfig
         if (latest !== config) {
@@ -199,8 +205,5 @@ class SteadyAccessibilityService : AccessibilityService() {
     private companion object {
         const val TAG = "SteadyA11y"
         const val DEBOUNCE_MS = 250L
-
-        /** TODO(phase8/12): replace with the user's real baseline (e.g. median opens per day, first week). */
-        const val OPENS_BASELINE_PLACEHOLDER = 11
     }
 }

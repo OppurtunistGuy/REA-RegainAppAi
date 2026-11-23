@@ -8,6 +8,9 @@ import app.steady.data.PlanRepository
 import app.steady.data.SessionRepository
 import app.steady.data.UnlockRepository
 import app.steady.learning.FocusSession
+import app.steady.remote.NoKeyHolderLinked
+import app.steady.remote.NotSignedIn
+import app.steady.remote.UnlockOutcome
 import app.steady.rules.Plan
 import app.steady.rules.RulesEngine
 import kotlinx.coroutines.CancellationException
@@ -17,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -24,6 +28,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
@@ -50,6 +55,8 @@ class FocusViewModel(
     private val routeScheduleId: String?,
     ticks: Flow<Instant> = secondTicker(clock),
     private val idGen: () -> String = { UUID.randomUUID().toString() },
+    /** Key-holder decisions per request id (`RemoteUnlockRepository.outcomes`); empty when local only. */
+    unlockOutcomes: Flow<Map<String, UnlockOutcome>> = emptyFlow(),
 ) : ViewModel() {
     private val block = MutableStateFlow<FocusBlock?>(null)
     private val sheet = MutableStateFlow(UnlockSheetState())
@@ -67,6 +74,23 @@ class FocusViewModel(
             interceptBaseline = sessionRepo.interceptsOn(date).first()
             block.value = FocusBlockResolver.resolve(current, rules, energy, now, routeScheduleId)
         }
+        viewModelScope.launch {
+            unlockOutcomes.collect { outcomes ->
+                val id = sheet.value.pendingRequestId ?: return@collect
+                outcomeAction(id, outcomes[id])?.let(::dispatch)
+            }
+        }
+    }
+
+    private fun outcomeAction(id: String, outcome: UnlockOutcome?): UnlockAction? = when (outcome) {
+        null, UnlockOutcome.Pending -> null
+        is UnlockOutcome.Approved -> UnlockAction.KeyHolderApproved(
+            id,
+            outcome.grant.until,
+            Duration.between(outcome.grant.from, outcome.grant.until).toMinutes().toInt().coerceAtLeast(1),
+        )
+        UnlockOutcome.Denied -> UnlockAction.KeyHolderDenied(id)
+        UnlockOutcome.TimedOut, UnlockOutcome.Abandoned -> UnlockAction.KeyHolderNoAnswer(id)
     }
 
     val state: StateFlow<FocusUiState> =
@@ -102,6 +126,10 @@ class FocusViewModel(
                 }
             } catch (e: CancellationException) {
                 throw e
+            } catch (_: NotSignedIn) {
+                UnlockAction.FailedSignedOut
+            } catch (_: NoKeyHolderLinked) {
+                UnlockAction.FailedNoKeyHolder
             } catch (_: Exception) {
                 UnlockAction.Failed
             }

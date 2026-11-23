@@ -5,14 +5,12 @@ import app.steady.data.Features
 import app.steady.data.Tier
 
 /**
- * Free-tier rules (docs/CONTRACTS.md "Free tier limits"), read by Paywall and Settings.
- * Strict mode itself is never limited.
- *
- * Note: Setup still enforces the schedule limit itself via `Features.FREE_SCHEDULE_LIMIT`
- * (feature/setup/SetupViewModel.kt). TODO(phase12): make Setup call [scheduleLimit].
+ * Free-tier rules (docs/CONTRACTS.md "Free tier limits"), read by Setup, Paywall and Settings.
+ * The single source of the free limits. Strict mode itself is never limited.
  */
 object FreeTier {
-    const val SCHEDULE_LIMIT = Features.FREE_SCHEDULE_LIMIT
+    /** CONTRACTS: free = 2 schedules. */
+    const val SCHEDULE_LIMIT = 2
     const val KEY_HOLDER_LIMIT = 1
 
     /** What every user gets, Plus or not. */

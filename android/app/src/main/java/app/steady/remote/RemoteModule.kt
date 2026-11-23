@@ -1,6 +1,7 @@
 package app.steady.remote
 
 import android.content.Context
+import app.steady.data.DetectorConfigStore
 import app.steady.data.PlanRepository
 import app.steady.data.SessionRepository
 import app.steady.data.UnlockRepository
@@ -8,6 +9,7 @@ import app.steady.di.AppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -23,6 +25,10 @@ class RemoteModule(
     sessionRepo: SessionRepository,
     localUnlocks: UnlockRepository,
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    /** Must be the guard wired into [api]'s `onUnauthorized` (see [create]). */
+    val authGuard: AuthGuard = AuthGuard(account),
+    /** Refreshed from `GET /v1/detectors` after each successful sync. Null in tests that don't care. */
+    private val detectors: DetectorConfigStore? = null,
 ) {
     val syncApi = RemoteSyncApi(api, account)
     val sync = SyncCoordinator(planRepo, syncApi, account)
@@ -46,6 +52,11 @@ class RemoteModule(
         sync.start(scope)
         uploader.start(scope)
         entitlements.start()
+        detectors?.let { store ->
+            scope.launch {
+                sync.status.filterIsInstance<SyncStatus.Synced>().collect { store.refresh(syncApi) }
+            }
+        }
     }
 
     // ---- account actions used by Settings ----
@@ -58,14 +69,41 @@ class RemoteModule(
         val auth = api.verifyOtp(contact.trim(), code.trim(), name?.trim()?.takeIf { it.isNotEmpty() })
         val acc = Account(auth.userId, auth.token, name?.trim()?.takeIf { it.isNotEmpty() }, contact.trim())
         account.signIn(acc)
+        authGuard.clear()
         scope.launch { entitlements.refreshServer() }
         return acc
     }
 
-    /** Local sign-out: forgets the token. Synced data stays on the server (no DELETE /v1/me yet). */
+    /**
+     * Forgets the token right away, then revokes it on the server (`POST /v1/auth/logout`) in the
+     * background; offline the token simply expires. Synced data stays on the server.
+     */
     fun signOut() {
+        val token = account.account.value?.token
         account.signOut()
-        scope.launch { entitlements.refreshServer() }
+        scope.launch {
+            if (token != null) {
+                try {
+                    api.logout(token)
+                } catch (e: ApiException) {
+                    // Offline or already invalid: nothing else to do.
+                }
+            }
+            entitlements.refreshServer()
+        }
+    }
+
+    /**
+     * `DELETE /v1/me`: erases the plan, sessions, unlock requests, invites, key-holder links,
+     * entitlements and tokens on the server, then signs out locally. Throws [ApiException] (and stays
+     * signed in) if the server could not be reached, so the user can retry. Local data is kept.
+     */
+    suspend fun deleteSyncedData() {
+        if (!account.isSignedIn) throw NotSignedIn()
+        api.deleteMe()
+        account.signOut()
+        authGuard.clear()
+        entitlements.refreshServer()
     }
 
     companion object {
@@ -74,11 +112,17 @@ class RemoteModule(
             planRepo: PlanRepository,
             sessionRepo: SessionRepository,
             localUnlocks: UnlockRepository,
+            detectors: DetectorConfigStore? = null,
         ): RemoteModule {
             val account = PrefsAccountStore(context)
-            val api = ApiClient(baseUrl = { account.baseUrl.value }, token = { account.account.value?.token })
+            val guard = AuthGuard(account)
+            val api = ApiClient(
+                baseUrl = { account.baseUrl.value },
+                token = { account.account.value?.token },
+                onUnauthorized = guard::onUnauthorized,
+            )
             val billing = runCatching { PlayBillingGateway(context) }.getOrDefault(NoBillingGateway)
-            return RemoteModule(account, api, billing, planRepo, sessionRepo, localUnlocks)
+            return RemoteModule(account, api, billing, planRepo, sessionRepo, localUnlocks, authGuard = guard, detectors = detectors)
         }
     }
 }

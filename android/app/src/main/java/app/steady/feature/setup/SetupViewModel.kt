@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.steady.data.EmptyPlan
 import app.steady.data.EntitlementRepository
-import app.steady.data.Features
 import app.steady.data.PlanRepository
 import app.steady.data.isConfigured
+import app.steady.feature.paywall.FreeTier
 import app.steady.rules.Plan
 import app.steady.rules.Relation
 import app.steady.rules.Schedule
@@ -31,7 +31,7 @@ data class SetupUiState(
     val relation: Relation = Relation.SELF,
     val keyHolderName: String = "",
     val editor: ScheduleDraft? = null,
-    val scheduleLimit: Int? = Features.FREE_SCHEDULE_LIMIT,
+    val scheduleLimit: Int? = FreeTier.SCHEDULE_LIMIT,
     val limitHit: Boolean = false,
     val saving: Boolean = false,
     val saved: Boolean = false,
@@ -56,8 +56,8 @@ class SetupViewModel(
 
     /** null = unlimited. */
     private val limit: StateFlow<Int?> = entitlements.entitlement
-        .map { if (Features.UNLIMITED_SCHEDULES in it.features) null else Features.FREE_SCHEDULE_LIMIT }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Features.FREE_SCHEDULE_LIMIT)
+        .map(FreeTier::scheduleLimit)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, FreeTier.SCHEDULE_LIMIT)
 
     init {
         viewModelScope.launch {
