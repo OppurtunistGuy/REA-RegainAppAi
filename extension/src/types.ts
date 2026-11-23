@@ -77,6 +77,13 @@ export interface UnlockGrant {
   approvedBy: string | null;
 }
 
+/** An unlock request sent to the key holder that has no answer yet. */
+export interface PendingUnlock {
+  id: string;
+  surfaceId: string | null;
+  createdAt: number;
+}
+
 /** Messages extension pages send to the service worker. */
 export type Message =
   | { type: "grant"; grant: UnlockGrant }

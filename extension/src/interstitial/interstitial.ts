@@ -1,17 +1,35 @@
 // Entry point for interstitial.html: read local state, wire the controller to chrome APIs.
 
-import { read } from "../storage.js";
+import { authMessage, createUnlockRequest, getUnlockRequest } from "../api.js";
+import { markSignedOut, read, write } from "../storage.js";
 import type { Message, UnlockGrant } from "../types.js";
-import { InterstitialController } from "./controller.js";
+import { InterstitialController, type RemoteUnlock } from "./controller.js";
 import { parseInterstitialHref } from "./params.js";
 
 async function main(): Promise<void> {
-  const [status, plan, grants] = await Promise.all([read("status"), read("plan"), read("grants")]);
+  const [status, plan, grants, settings, pending] = await Promise.all([
+    read("status"),
+    read("plan"),
+    read("grants"),
+    read("settings"),
+    read("pendingUnlock"),
+  ]);
+  const token = settings.token;
+  const remote: RemoteUnlock | null = token
+    ? {
+        request: (surfaceId, reason) => createUnlockRequest(settings.apiBase, token, surfaceId, reason),
+        poll: (id) => getUnlockRequest(settings.apiBase, token, id),
+      }
+    : null;
   const controller = new InterstitialController(document, {
     params: parseInterstitialHref(location.href),
     status,
     plan: plan?.value ?? null,
     grants,
+    remote,
+    pending,
+    savePending: (p) => write("pendingUnlock", p),
+    onAuthError: (code) => markSignedOut(authMessage(code)),
     closeTab: () => {
       void (async () => {
         const tab = await chrome.tabs.getCurrent();

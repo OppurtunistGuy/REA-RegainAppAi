@@ -3,9 +3,17 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { InterstitialController, effectivePolicy, type InterstitialDeps } from "../src/interstitial/controller.js";
+import { ApiError, type UnlockRequestStatus } from "../src/api.js";
+import {
+  InterstitialController,
+  POLL_LIMIT_MS,
+  POLL_MS,
+  effectivePolicy,
+  type InterstitialDeps,
+  type RemoteUnlock,
+} from "../src/interstitial/controller.js";
 import { parseInterstitialHref, safeReturnUrl, surfaceName } from "../src/interstitial/params.js";
-import type { Plan, PublishedStatus, UnlockGrant } from "../src/types.js";
+import type { PendingUnlock, Plan, PublishedStatus, UnlockGrant } from "../src/types.js";
 import { UnlockFlow, reasonCounts } from "../src/unlock.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -119,7 +127,7 @@ describe("UnlockFlow port", () => {
     expect(reasonCounts("        ")).toBe(false);
   });
   it("non-strict blocks drop the wait and reason", () => {
-    expect(effectivePolicy(plan, false)).toMatchObject({ waitSeconds: 0, requireReason: false });
+    expect(effectivePolicy(plan, false)).toMatchObject({ waitSeconds: 0, requireReason: false, notifyKeyHolder: false });
     expect(effectivePolicy(plan, true)).toMatchObject({ waitSeconds: 30, requireReason: true });
     expect(effectivePolicy(null, true).approvalMinutes).toBe(15);
   });
@@ -193,15 +201,16 @@ describe("interstitial flow", () => {
     expect(calls.navigated).toEqual(["https://www.instagram.com/p/abc/?a=1&b=2#x"]);
   });
 
-  it("with a key holder the unlock still works locally and says so", async () => {
-    const { c, calls } = setup({ plan: { ...plan, keyHolder: { id: "kh", name: "Asha", relation: "friend" } } });
+  it("a key holder with notifyKeyHolder off: unlock stays local", async () => {
+    const { c, calls } = setup({
+      plan: { ...plan, keyHolder: { id: "kh", name: "Asha", relation: "friend" }, unlockPolicy: { ...plan.unlockPolicy, notifyKeyHolder: false } },
+    });
     vi.advanceTimersByTime(5000);
     click("unlockBtn");
-    expect($("keyholderNote").hidden).toBe(false);
-    expect($("keyholderNote").textContent).toContain("Asha");
+    expect($("keyholderNote").hidden).toBe(true);
     vi.advanceTimersByTime(30_000);
     type("lecture link from my teacher");
-    expect(c.unlockStep()).toBe("NEEDS_KEYHOLDER");
+    expect(c.unlockStep()).toBe("READY");
     expect(await c.confirmUnlock()).toBe(true);
     expect(calls.grants).toHaveLength(1);
   });
@@ -238,5 +247,222 @@ describe("interstitial flow", () => {
     document.body.innerHTML = bodyHtml;
     const unlisted = setup({ status: status({ blockedDomains: [] }) });
     expect(unlisted.c.view).toBe("idle");
+  });
+});
+
+describe("key-holder unlock (POST /v1/unlock-requests + polling)", () => {
+  const khPlan: Plan = { ...plan, keyHolder: { id: "kh", name: "Asha", relation: "friend" } };
+
+  function fakeRemote(answers: (UnlockRequestStatus | Error)[] = []) {
+    const sent: { surfaceId: string | null; reason: string }[] = [];
+    const polls: string[] = [];
+    let createError: Error | null = null;
+    const remote: RemoteUnlock = {
+      request: async (surfaceId, reason) => {
+        if (createError) throw createError;
+        sent.push({ surfaceId, reason });
+        return { id: "req-1", status: "pending" };
+      },
+      poll: async (id) => {
+        polls.push(id);
+        const next = answers.length > 1 ? answers.shift()! : (answers[0] ?? { id, status: "pending" as const });
+        if (next instanceof Error) throw next;
+        return next;
+      },
+    };
+    return {
+      remote,
+      sent,
+      polls,
+      failCreate: (e: Error) => {
+        createError = e;
+      },
+    };
+  }
+
+  function ask(over: Partial<InterstitialDeps> = {}) {
+    const pendings: (PendingUnlock | null)[] = [];
+    const authErrors: (string | null)[] = [];
+    const r = setup({
+      plan: khPlan,
+      savePending: async (p) => {
+        pendings.push(p);
+      },
+      onAuthError: (code) => {
+        authErrors.push(code);
+      },
+      ...over,
+    });
+    vi.advanceTimersByTime(5000);
+    click("unlockBtn");
+    vi.advanceTimersByTime(30_000);
+    type("teacher sent the lecture link");
+    return { ...r, pendings, authErrors };
+  }
+
+  it("sends only the surface id and reason, polls every 10 s and applies the approval", async () => {
+    const fake = fakeRemote([
+      { id: "req-1", status: "pending" },
+      { id: "req-1", status: "approved", until: new Date(T0 + 3_600_000).toISOString() },
+    ]);
+    const { c, calls, pendings } = ask({ remote: fake.remote });
+    expect($("keyholderNote").textContent).toContain("Steady will ask Asha");
+    expect($("privacyLine").textContent).toContain("Only your reason");
+    expect(c.unlockStep()).toBe("NEEDS_KEYHOLDER");
+    expect($("unlockConfirm").textContent).toBe("Ask Asha for 15 min");
+    expect($<HTMLButtonElement>("unlockConfirm").disabled).toBe(false);
+
+    expect(await c.confirmUnlock()).toBe(true);
+    expect(fake.sent).toEqual([{ surfaceId: "site:instagram.com", reason: "teacher sent the lecture link" }]);
+    expect(c.view).toBe("waiting");
+    expect($("waitingPanel").hidden).toBe(false);
+    expect($("waitingTitle").textContent).toBe("Asked Asha");
+    expect(pendings).toEqual([{ id: "req-1", surfaceId: "site:instagram.com", createdAt: Date.now() }]);
+    expect(calls.grants).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(POLL_MS - 1);
+    expect(fake.polls).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fake.polls).toEqual(["req-1"]);
+    expect(c.view).toBe("waiting");
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    expect(fake.polls).toHaveLength(2);
+    expect(c.waitOutcome).toBe("approved");
+    expect(calls.grants).toEqual([
+      { id: "req-1", surfaceId: "site:instagram.com", from: Date.now(), until: T0 + 3_600_000, approvedBy: "Asha" },
+    ]);
+    expect(pendings.at(-1)).toBeNull();
+    expect(calls.navigated).toEqual(["https://www.instagram.com/p/abc/?a=1&b=2#x"]);
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3);
+    expect(fake.polls).toHaveLength(2); // polling stopped
+  });
+
+  it("a denial grants nothing and says so", async () => {
+    const fake = fakeRemote([{ id: "req-1", status: "denied" }]);
+    const { c, calls, pendings } = ask({ remote: fake.remote });
+    await c.confirmUnlock();
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    expect(c.waitOutcome).toBe("denied");
+    expect($("waitingTitle").textContent).toBe("Asha said not now");
+    expect(calls.grants).toHaveLength(0);
+    expect(calls.navigated).toHaveLength(0);
+    expect(pendings.at(-1)).toBeNull();
+    click("waitingClose");
+    expect(calls.closed).toBe(1);
+  });
+
+  it("gives up after 15 minutes without an answer", async () => {
+    const fake = fakeRemote();
+    const { c, calls } = ask({ remote: fake.remote });
+    await c.confirmUnlock();
+    await vi.advanceTimersByTimeAsync(POLL_LIMIT_MS + POLL_MS);
+    expect(c.waitOutcome).toBe("timeout");
+    expect($("waitingTitle").textContent).toBe("No answer yet");
+    expect(fake.polls.length).toBeGreaterThanOrEqual(89);
+    expect(fake.polls.length).toBeLessThanOrEqual(90);
+    const n = fake.polls.length;
+    await vi.advanceTimersByTimeAsync(POLL_MS * 5);
+    expect(fake.polls).toHaveLength(n);
+    expect(calls.grants).toHaveLength(0);
+  });
+
+  it("keeps polling through network errors", async () => {
+    const fake = fakeRemote([
+      new TypeError("Failed to fetch"),
+      { id: "req-1", status: "approved", until: new Date(T0 + 900_000).toISOString() },
+    ]);
+    const { c, calls } = ask({ remote: fake.remote });
+    await c.confirmUnlock();
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    expect(c.view).toBe("waiting");
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    expect(calls.grants).toHaveLength(1);
+  });
+
+  it("never self-grants while a key holder must answer, even when signed out", async () => {
+    const { c, calls } = ask({ remote: null });
+    expect($("keyholderNote").textContent).toContain("Sign in again");
+    expect(c.unlockStep()).toBe("NEEDS_KEYHOLDER");
+    expect($<HTMLButtonElement>("unlockConfirm").disabled).toBe(true);
+    expect(await c.confirmUnlock()).toBe(false);
+    expect(calls.grants).toHaveLength(0);
+  });
+
+  it("server error on create: stays on the unlock panel with a message, no grant", async () => {
+    const fake = fakeRemote();
+    fake.failCreate(new ApiError(500, "boom", "internal"));
+    const { c, calls } = ask({ remote: fake.remote });
+    expect(await c.confirmUnlock()).toBe(false);
+    expect(c.view).toBe("unlock");
+    expect($("unlockError").hidden).toBe(false);
+    expect($<HTMLButtonElement>("unlockConfirm").disabled).toBe(false);
+    expect(calls.grants).toHaveLength(0);
+  });
+
+  it("401 token_expired on create asks to sign in again", async () => {
+    const fake = fakeRemote();
+    fake.failCreate(new ApiError(401, "expired", "token_expired"));
+    const { c, calls, authErrors } = ask({ remote: fake.remote });
+    expect(await c.confirmUnlock()).toBe(false);
+    expect(authErrors).toEqual(["token_expired"]);
+    expect($("unlockError").textContent).toContain("Sign in again");
+    expect(calls.grants).toHaveLength(0);
+  });
+
+  it("401 while polling stops and asks to sign in again", async () => {
+    const fake = fakeRemote([new ApiError(401, "expired", "token_expired")]);
+    const { c, authErrors, calls } = ask({ remote: fake.remote });
+    await c.confirmUnlock();
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    expect(c.waitOutcome).toBe("error");
+    expect(authErrors).toEqual(["token_expired"]);
+    expect(calls.grants).toHaveLength(0);
+  });
+
+  it("no key holder linked on the server (409 no_keyholder) → local grant", async () => {
+    const fake = fakeRemote();
+    fake.failCreate(new ApiError(409, "none", "no_keyholder"));
+    const { c, calls } = ask({ remote: fake.remote });
+    expect(await c.confirmUnlock()).toBe(true);
+    expect(calls.grants).toHaveLength(1);
+    expect(calls.grants[0]!.approvedBy).toBeNull();
+  });
+
+  it("a 'self' key holder has nobody to ask: local grant without contacting the server", async () => {
+    const fake = fakeRemote();
+    const { c, calls } = ask({ remote: fake.remote, plan: { ...plan, keyHolder: { id: "me", name: "Me", relation: "self" } } });
+    expect(c.unlockStep()).toBe("READY");
+    expect(await c.confirmUnlock()).toBe(true);
+    expect(fake.sent).toHaveLength(0);
+    expect(calls.grants).toHaveLength(1);
+  });
+
+  it("reopening the page resumes a pending request for the same surface", async () => {
+    const fake = fakeRemote([{ id: "req-9", status: "approved", until: new Date(T0 + 600_000).toISOString() }]);
+    const pending: PendingUnlock = { id: "req-9", surfaceId: "site:instagram.com", createdAt: T0 - 60_000 };
+    const { c, calls } = setup({ plan: khPlan, remote: fake.remote, pending, savePending: async () => {} });
+    expect(c.view).toBe("waiting");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fake.polls).toEqual(["req-9"]);
+    expect(calls.grants[0]).toMatchObject({ id: "req-9", until: T0 + 600_000 });
+  });
+
+  it("ignores a stale or other-surface pending request", () => {
+    const fake = fakeRemote();
+    const stale = setup({ plan: khPlan, remote: fake.remote, pending: { id: "x", surfaceId: "site:instagram.com", createdAt: T0 - POLL_LIMIT_MS } });
+    expect(stale.c.view).toBe("breath");
+    document.body.innerHTML = bodyHtml;
+    const other = setup({ plan: khPlan, remote: fake.remote, pending: { id: "x", surfaceId: "youtube.shorts", createdAt: T0 } });
+    expect(other.c.view).toBe("breath");
+  });
+
+  it("Back from waiting stops polling", async () => {
+    const fake = fakeRemote();
+    const { c } = ask({ remote: fake.remote });
+    await c.confirmUnlock();
+    click("waitingBack");
+    expect(c.view).toBe("choices");
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3);
+    expect(fake.polls).toHaveLength(0);
   });
 });
