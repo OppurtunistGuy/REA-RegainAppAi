@@ -4,8 +4,6 @@ import android.content.Context
 import app.steady.data.CardRepository
 import app.steady.data.DayRepository
 import app.steady.data.EntitlementRepository
-import app.steady.data.FreeEntitlementRepository
-import app.steady.data.NoopSyncApi
 import app.steady.data.PlanRepository
 import app.steady.data.SessionRepository
 import app.steady.data.SyncApi
@@ -18,6 +16,8 @@ import app.steady.data.local.LocalSessionRepository
 import app.steady.data.local.LocalUnlockRepository
 import app.steady.detect.DetectorCodec
 import app.steady.detect.DetectorConfig
+import app.steady.remote.RemoteHost
+import app.steady.remote.RemoteModule
 import app.steady.rules.RulesEngine
 import java.time.Clock
 import java.time.ZoneId
@@ -42,7 +42,7 @@ interface AppContainer {
     val zone: ZoneId
 }
 
-class DefaultAppContainer(context: Context) : AppContainer {
+class DefaultAppContainer(context: Context) : AppContainer, RemoteHost {
     private val appContext = context.applicationContext
     private val db: SteadyDatabase by lazy { SteadyDatabase.build(appContext) }
 
@@ -52,18 +52,28 @@ class DefaultAppContainer(context: Context) : AppContainer {
     override val planRepo: PlanRepository by lazy { LocalPlanRepository(db.planDao(), clock) }
     override val sessionRepo: SessionRepository by lazy { LocalSessionRepository(db.sessionDao(), zone) }
     override val cardRepo: CardRepository by lazy { LocalCardRepository(db.cardDao()) }
-    override val unlockRepo: UnlockRepository by lazy { LocalUnlockRepository(db.unlockDao(), clock) }
+    private val localUnlockRepo: UnlockRepository by lazy { LocalUnlockRepository(db.unlockDao(), clock) }
     override val dayRepo: DayRepository by lazy { LocalDayRepository(db.dayDao(), clock) }
 
-    // ---- Phase 11 swaps these two ----
-    override val entitlements: EntitlementRepository = FreeEntitlementRepository()
-    override val syncApi: SyncApi = NoopSyncApi
+    // ---- Phase 11: remote-backed, local-first (signed out = local only, free tier) ----
+    override val remote: RemoteModule by lazy {
+        RemoteModule.create(appContext, planRepo, sessionRepo, localUnlockRepo)
+    }
+    override val unlockRepo: UnlockRepository get() = remote.unlocks
+    override val entitlements: EntitlementRepository get() = remote.entitlements
+    override val syncApi: SyncApi get() = remote.syncApi
 
     override val rules: RulesEngine by lazy { RulesEngine(zone) }
 
     /** Seed config shipped in assets (copied from shared/detectors by the build). */
     override val detectorConfig: DetectorConfig by lazy {
         appContext.assets.open(DETECTOR_ASSET).bufferedReader().use { DetectorCodec.decode(it.readText()) }
+    }
+
+    init {
+        // Sync on start (when signed in), session upload and entitlement refresh run in the
+        // module's own background scope; the Room DB is opened lazily off the main thread.
+        remote.start()
     }
 
     companion object {

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Phase 11. Release: HTTPS only. The debug build overrides this file
+  (src/debug/res/xml/network_security_config.xml) to allow cleartext to the emulator host only.
+  Manifest (Phase 12): <application android:networkSecurityConfig="@xml/network_security_config" ...>
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>
